@@ -61,6 +61,9 @@ auto main(int argc, char* argv[]) -> int
   
   std::vector<size_t> sorted_indices = TonSZ::z_order_sort_indices(shifted_points);
 
+  // save indices for analysis
+  TonSZ::write_file_bin<size_t>("sorted_indices.bin", sorted_indices);
+
   TonSZ::apply_permutation_inplace<Eigen::RowVector<float, 3> >(points, sorted_indices);
   TonSZ::apply_permutation_inplace<Eigen::RowVector3i>(shifted_points, sorted_indices);
 
