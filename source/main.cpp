@@ -5,6 +5,7 @@
 #include <vector>
 #include <stdexcept>
 
+#include "io/fileUtils.hpp"
 #include "lib.hpp"
 
 auto decompress_int_vector(const std::vector<uint8_t>& compressed_data, size_t original_count) -> std::vector<uint8_t> {
@@ -84,18 +85,20 @@ auto main(int argc, char* argv[]) -> int
   //   }
   // }
 
-  std::cout << "original size of x: " << coordwise_values.size() * sizeof(int) << std::endl;
-  std::cout << "compressed size of x: " << compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint32_t) << std::endl;
-  std::cout << "compression ratio of x: " << (double)coordwise_values.size() * sizeof(int) / (compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t)) << std::endl;
+  std::cout << "original size of coords: " << coordwise_values.size() * sizeof(int) << std::endl;
+  std::cout << "compressed size of coords: " << compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t) << std::endl;
+  std::cout << "compression ratio of coords: " << (double)coordwise_values.size() * sizeof(int) / (compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t)) << std::endl;
 
   auto compressed_int_vector = compress_int_vector(compressed);
 
-  std::cout << "compressed size of x: " << compressed_int_vector.size() << std::endl;
-  std::cout << "compression ratio of x: " << (double)coordwise_values.size() * sizeof(int) / (compressed_int_vector.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t)) << std::endl;
+  std::cout << "compressed size of coords (after zstd): " << compressed_int_vector.size() << std::endl;
+  std::cout << "compression ratio of coords (after zstd): " << (double)coordwise_values.size() * sizeof(int) / (compressed_int_vector.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t)) << std::endl;
+
+  TonSZ::write_file_bin<uint8_t>("compressed_coords.bin", compressed_int_vector);
 
   // begin recovery
-
-  auto decompressed_int_vector = decompress_int_vector(compressed_int_vector, compressed.size());
+  auto saved_data = TonSZ::read_file_bin<uint8_t>("compressed_coords.bin");
+  auto decompressed_int_vector = decompress_int_vector(saved_data, compressed.size());
 
   std::cout << "Zstd decompression finished" << std::endl;
   auto decoder = TonSZ::HuffmanEncoder<int>();

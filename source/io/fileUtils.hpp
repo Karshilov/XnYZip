@@ -39,6 +39,37 @@ namespace TonSZ {
 
         file.close();
     }
+
+    template<typename T>
+    auto write_file_bin(const std::string& path, const std::vector<T>& data) -> void {
+        std::ofstream file(path, std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("Failed to open file: " + path);
+        }
+
+        for (const auto& value : data) {
+            file.write(reinterpret_cast<const char*>(&value), sizeof(value));
+        }
+
+        file.close();
+    }
+
+    template<typename T>
+    auto read_file_bin(const std::string& path) -> std::vector<T> {
+        std::vector<T> data;
+        std::ifstream file(path, std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("Failed to open file: " + path);
+        }
+
+        T value;
+        while (file.read(reinterpret_cast<char*>(&value), sizeof(value))) {
+            data.push_back(value);
+        }
+
+        file.close();
+        return data;
+    }
 } // namespace TonSZ
 
 #endif

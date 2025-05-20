@@ -18,6 +18,7 @@ find_package(fmt REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZSTD REQUIRED libzstd)
+find_package(TBB REQUIRED)
 
 find_package(OpenMP REQUIRED)
 
@@ -30,7 +31,7 @@ target_include_directories(tonSZ_lib
 target_compile_features(tonSZ_lib INTERFACE cxx_std_20)
 
 target_link_libraries(tonSZ_lib
-    INTERFACE fmt::fmt Eigen3::Eigen OpenMP::OpenMP_CXX ${ZSTD_LIBRARIES}
+    INTERFACE fmt::fmt Eigen3::Eigen TBB::tbb OpenMP::OpenMP_CXX ${ZSTD_LIBRARIES}
 )
 
 target_include_directories(tonSZ_lib INTERFACE ${ZSTD_INCLUDE_DIRS})

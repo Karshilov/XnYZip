@@ -208,6 +208,6 @@ private:
     }
 };
 
-} // namespace huffman
+} // namespace TonSZ
 
 #endif // HUFFMAN_ENCODER_HPP

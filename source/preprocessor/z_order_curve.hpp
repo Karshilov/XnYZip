@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstdint>
 #include <algorithm>
+#include <execution> 
 #include <numeric>
 
 namespace TonSZ {
@@ -32,7 +33,7 @@ namespace TonSZ {
         std::vector<size_t> indices(voxels.size());
         std::iota(indices.begin(), indices.end(), 0);  // 0, 1, 2, ...
 
-        std::sort(indices.begin(), indices.end(), [&](size_t i, size_t j) {
+        std::sort(std::execution::par, indices.begin(), indices.end(), [&](size_t i, size_t j) {
             return morton_code(voxels[i]) < morton_code(voxels[j]);
         });
 
