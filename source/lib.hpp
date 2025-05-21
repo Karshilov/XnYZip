@@ -1,9 +1,12 @@
 #pragma once
 
 #include "./quantizer/truncated_octahedron_quantizer.hpp"
+#include "./quantizer/cube_quantizer.hpp"
 #include "./io/fileUtils.hpp"
 #include "./statistics/utils.hpp"
 #include "./encoder/huffman_encoder.hpp"
 #include "./encoder/delta_encoder.hpp"
 #include "./preprocessor/z_order_curve.hpp"
 #include "./preprocessor/shifting.hpp"
+#include "./composer/compressor.hpp"
+#include "./composer/decompressor.hpp"
