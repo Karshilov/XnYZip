@@ -9,6 +9,12 @@ auto main(int argc, char* argv[]) -> int
   auto const file_name = argv[1];
   auto points = TonSZ::read_file<float>(file_name);
   std::vector<Eigen::RowVector3f> recovered_points;
+
+  if (argc != 5) {
+    printf("Usage: %s <input_file> <quantizer_type (cube/octa)> <L2 bound> <decompression_file_name>\n", argv[0]);
+    return 1;
+  }
+
   if (std::string(argv[2]) == "cube") {
     auto compressor = TonSZ::Compressor<float>(TonSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
     auto compressed_points = compressor.compress(points);
