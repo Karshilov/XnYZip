@@ -82,12 +82,6 @@ auto main(int argc, char* argv[]) -> int
   auto meta = encoder.get_meta();
   auto compressed = encoder.encode(coordwise_values);
 
-  // for (size_t i = 0; i < point_x.size(); ++i) {
-  //   if (point_x[i] != delta_encoded_points[i].x()) {
-  //     std::cout << "error in x" << std::endl;
-  //   }
-  // }
-
   std::cout << "original size of coords: " << coordwise_values.size() * sizeof(int) << std::endl;
   std::cout << "compressed size of coords: " << compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t) << std::endl;
   std::cout << "compression ratio of coords: " << (double)coordwise_values.size() * sizeof(int) / (compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t)) << std::endl;
@@ -140,26 +134,6 @@ auto main(int argc, char* argv[]) -> int
   
   TonSZ::verify(coordwise_original_points.data(), coordwise_recovered_points.data(), points.size(), psnr, nrmse, max_diff);
 
-  // TonSZ::HuffmanEncoder<int> encoder;
-  // encoder.build(data);
-  // auto meta       = encoder.get_meta();
-  // auto compressed = encoder.encode(data);
-
-  // std::cout << "原始字节数: " 
-  //           << data.size() * sizeof(int) 
-  //           << "，meta 大小: " 
-  //           << meta.size() 
-  //           << "，压缩后大小: " 
-  //           << compressed.size() 
-  //           << "\n";
-
-  // TonSZ::HuffmanEncoder<int> decoder;
-  // decoder.load_meta(meta);
-  // auto decoded = decoder.decode(compressed, data.size());
-
-  // std::cout << "解码结果: ";
-  // for (int v : decoded) std::cout << v << ' ';
-  // std::cout << (decoded == data ? "（成功）" : "（失败）") << "\n";
   TonSZ::write_file(argv[3], recovered_points);
   return 0;
 }
