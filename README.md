@@ -14,7 +14,9 @@ See the [CONTRIBUTING](CONTRIBUTING.md) document.
 
 After build tonSZ:
 
-```./build/tonSZ <input_file> <quantizer_type (cube/octa)> <L2 bound> <decompression_file_name>```sh
+```sh
+./build/tonSZ <input_file> <quantizer_type (cube/octa)> <L2 bound> <decompression_file_name>
+```
 
 input file should be a float32 bin file, arranged like x1, y1, z1, x2, y2, z2 ....
 
