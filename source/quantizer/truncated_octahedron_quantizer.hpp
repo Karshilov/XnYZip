@@ -4,6 +4,7 @@
 #include "base_quantizer.hpp"
 #include <vector>
 #include <Eigen/Dense>
+#include <cstdlib>
 
 namespace TonSZ {
 
@@ -17,7 +18,7 @@ namespace TonSZ {
         public:
             explicit TruncatedOctahedronQuantizer(T scale): BaseQuantizer<T>(scale) {}
 
-        auto quantize(std::vector<Eigen::RowVector<T, 3>> const& points) const -> std::vector<Eigen::RowVector3i> {
+        auto quantize(std::vector<Eigen::RowVector<T, 3>> const& points, std::vector<T>& params) const -> std::vector<Eigen::RowVector3i> {
             std::vector<Eigen::RowVector3i> quantized_points {};
             quantized_points.reserve(points.size());
 
@@ -25,54 +26,80 @@ namespace TonSZ {
 
                 // Eigen::RowVector<T, 3> uvw = transform_point<T>(pt, get_inverse_transform_matrix<T>(TRUNC_OCT_SCALE_)) + Eigen::RowVector<T, 3>::Constant(0.5);
                 Eigen::RowVector<T, 3> quantized_xyz = pt / (2 * this->TRUNC_OCT_SCALE_ / sqrt(5));
-                Eigen::RowVector3i base = quantized_xyz.array().round().template cast<int>();
+                
+                auto nearest_lattice = [&](const Eigen::RowVector3f &p) -> Eigen::RowVector3i {
+                    auto nearest_even = [](float v) -> int {
+                        int lo = int(std::floor(v));
+                        if (lo & 1) {
+                            lo -= 1;
+                        }
+                        int hi = lo + 2;
+                        return (std::fabs(v - lo) <= std::fabs(hi - v)) ? lo : hi;
+                    };
+                    auto nearest_odd = [](float v) -> int {
+                        int lo = int(std::floor(v));
+                        if ((lo & 1) == 0) {
+                            lo -= 1;
+                        }
+                        int hi = lo + 2;
+                        return (std::fabs(v - lo) <= std::fabs(hi - v)) ? lo : hi;
+                    };
 
-                if ((base[0] & 1 && base[1] & 1 && base[2] & 1) || (!(base[0] & 1) && !(base[1] & 1) && !(base[2] & 1))) {
-                    quantized_points.push_back(base);
-                    continue;
-                }
-
-                double min_dist = std::numeric_limits<double>::max();
-                Eigen::RowVector3i best_voxel;
-
-                for (const auto& offset : offsets) {
-                    Eigen::RowVector3i candidate_voxel = base + offset;
-                    Eigen::RowVector<T, 3> candidate_center = candidate_voxel.cast<T>() * 2 * this->TRUNC_OCT_SCALE_ / sqrt(5);
-                    double dist = (pt - candidate_center).squaredNorm();
-
-                    if (dist < min_dist) {
-                        min_dist = dist;
-                        best_voxel = candidate_voxel;
+                    Eigen::RowVector3i E, O;
+                    for (int i = 0; i < 3; ++i) {
+                        E[i] = nearest_even(p[i]);
+                        O[i] = nearest_odd(p[i]);
                     }
-                }
 
-                quantized_points.push_back(best_voxel);
+                    float dE = (p - E.cast<float>()).squaredNorm();
+                    float dO = (p - O.cast<float>()).squaredNorm();
+
+
+                    if (std::min(dE, dO) > 1.25) {
+                        throw std::runtime_error("Quantized point is too far from the original point");
+                    }
+
+                    return (dE <= dO) ? E : O;
+                };
+
+                auto node = nearest_lattice(quantized_xyz);
+                if (node[0] & 1) {
+                    node[0] += 1;
+                    node[0] >>= 1;
+                    node[1] += 1;
+                    node[1] >>= 1;
+                } else {
+                    node[0] >>= 1;
+                    node[1] >>= 1;
+                }
+                quantized_points.push_back(node);
             }
+
             return quantized_points;
         }
 
-        auto recover(std::vector<Eigen::RowVector3i> const& points) const -> std::vector<Eigen::RowVector<T, 3>> {
+        auto recover(std::vector<Eigen::RowVector3i> const& points, std::vector<T> const& params) const -> std::vector<Eigen::RowVector<T, 3>> {
             std::vector<Eigen::RowVector<T, 3>> recovered_points {};
             recovered_points.reserve(points.size());
 
             for (const auto& voxel : points) {
-                // recovered_points.push_back(transform_point<T>(voxel.cast<T>(), get_transform_matrix<T>(TRUNC_OCT_SCALE_)));
-                recovered_points.push_back(voxel.cast<T>() * 2 * this->TRUNC_OCT_SCALE_ / sqrt(5));
+                auto node = voxel;
+                if (node[2] & 1) {
+                    node[0] <<= 1;
+                    node[0] -= 1;
+                    node[1] <<= 1;
+                    node[1] -= 1;
+                } else {
+                    node[0] <<= 1;
+                    node[1] <<= 1;
+                }
+                recovered_points.push_back(node.array().template cast<T>() * 2 * this->TRUNC_OCT_SCALE_ / sqrt(5));
             }
 
             return recovered_points;
         }
 
-        private:
-
-            const std::vector<Eigen::RowVector3i> offsets = {
-                {0, 0, 1},
-                {0, 0, -1},
-                {0, 1, 0},
-                {0, -1, 0},
-                {1, 0, 0},
-                {-1, 0, 0},
-            };
+    private:
     };
 
 } // namespace TonSZ

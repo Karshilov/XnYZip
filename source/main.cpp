@@ -16,56 +16,75 @@ auto main(int argc, char* argv[]) -> int
   }
 
   if (std::string(argv[2]) == "cube") {
-    auto compressor = TonSZ::Compressor<float>(TonSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
+    auto compressor = TonSZ::BlockCompressor<float>(TonSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
     auto compressed_points = compressor.compress(points);
 
-    printf("Compressed points size: %zu\n", compressed_points.size() * sizeof(uint8_t));
-    printf("Points size: %zu\n", points.size() * 3 * sizeof(float));
+    printf("compression ratio: %f\n", (float)points.size() * 3 * sizeof(float) / compressed_points.size() * sizeof(uint8_t));
 
-    std::string compressed_path = std::string(argv[1]) + ".ton";
-    TonSZ::write_file_bin(compressed_path, compressed_points);
+    auto decompressor = TonSZ::BlockDecompressor<float>(TonSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
+    recovered_points = decompressor.decompress(compressed_points);
 
-    auto stream = TonSZ::read_file_bin<uint8_t>(compressed_path);
-    auto decompressor = TonSZ::Decompressor<float>(TonSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
-    recovered_points = decompressor.decompress(stream);
   } else if (std::string(argv[2]) == "octa") {
-    auto compressor = TonSZ::Compressor<float>(TonSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
+    auto compressor = TonSZ::BlockCompressor<float>(TonSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
     auto compressed_points = compressor.compress(points);
 
-    printf("Compressed points size: %zu\n", compressed_points.size() * sizeof(uint8_t));
-    printf("Points size: %zu\n", points.size() * 3 * sizeof(float));
+    printf("compression ratio: %f\n", (float)points.size() * 3 * sizeof(float) / compressed_points.size() * sizeof(uint8_t));
 
-    std::string compressed_path = std::string(argv[1]) + ".ton";
-    TonSZ::write_file_bin(compressed_path, compressed_points);
+    auto decompressor = TonSZ::BlockDecompressor<float>(TonSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
+    recovered_points = decompressor.decompress(compressed_points);
 
-    auto stream = TonSZ::read_file_bin<uint8_t>(compressed_path);
+    printf("decompressed finished, size: %lu\n", recovered_points.size());
 
-    auto decompressor = TonSZ::Decompressor<float>(TonSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
-    recovered_points = decompressor.decompress(stream);
+  } else if (std::string(argv[2]) == "adaptive") {
+    auto compressor = TonSZ::BlockCompressor<float>(TonSZ::QUANTIZER_TYPE::ADAPTIVE, std::stof(argv[3]));
+    auto compressed_points = compressor.compress(points);
+
+    printf("compression ratio: %f\n", (float)points.size() * 3 * sizeof(float) / compressed_points.size() * sizeof(uint8_t));
+
+    auto decompressor = TonSZ::BlockDecompressor<float>(TonSZ::QUANTIZER_TYPE::ADAPTIVE, std::stof(argv[3]));
+    recovered_points = decompressor.decompress(compressed_points);
+
   }
- 
-  double psnr, nrmse, max_diff;
-  std::vector<float> coordwise_original_points_x(points.size());
-  std::vector<float> coordwise_original_points_y(points.size());
-  std::vector<float> coordwise_original_points_z(points.size());
-  std::vector<float> coordwise_recovered_points_x(recovered_points.size());
-  std::vector<float> coordwise_recovered_points_y(recovered_points.size());
-  std::vector<float> coordwise_recovered_points_z(recovered_points.size());
 
-  for (size_t i = 0; i < points.size(); ++i) {
-    coordwise_original_points_x[i] = points[i].x();
-    coordwise_original_points_y[i] = points[i].y();
-    coordwise_original_points_z[i] = points[i].z();
-    coordwise_recovered_points_x[i] = recovered_points[i].x();
-    coordwise_recovered_points_y[i] = recovered_points[i].y();
-    coordwise_recovered_points_z[i] = recovered_points[i].z();
+  double acc_mse = 0;
+  float max_l2_error = 0;
+  int overflow_count = 0;
+  for (int i = 0; i < points.size(); i++) {
+    // printf("points[%d]: %f, %f, %f\n", i, points[i].x(), points[i].y(), points[i].z());
+    // printf("recovered_points[%d]: %f, %f, %f\n", i, recovered_points[i].x(), recovered_points[i].y(), recovered_points[i].z());
+    acc_mse += (points[i].x() - recovered_points[i].x()) * (points[i].x() - recovered_points[i].x());
+    acc_mse += (points[i].y() - recovered_points[i].y()) * (points[i].y() - recovered_points[i].y());
+    acc_mse += (points[i].z() - recovered_points[i].z()) * (points[i].z() - recovered_points[i].z());
+    // printf("distance %d: %f\n", i, (points[i] - recovered_points[i]).norm());
+    if ((points[i] - recovered_points[i]).norm() > std::stof(argv[3])) {
+      // printf("points[%d]: %f, %f, %f\n", i, points[i].x(), points[i].y(), points[i].z());
+      // printf("recovered_points[%d]: %f, %f, %f\n", i, recovered_points[i].x(), recovered_points[i].y(), recovered_points[i].z());
+      // printf("distance %d: %f\n", i, (points[i] - recovered_points[i]).norm());
+      overflow_count++;
+    }
+    max_l2_error = std::max(max_l2_error, (points[i] - recovered_points[i]).norm());
   }
-  
-  
-  TonSZ::verify(coordwise_original_points_x.data(), coordwise_recovered_points_x.data(), points.size(), psnr, nrmse, max_diff);
-  TonSZ::verify(coordwise_original_points_y.data(), coordwise_recovered_points_y.data(), points.size(), psnr, nrmse, max_diff);
-  TonSZ::verify(coordwise_original_points_z.data(), coordwise_recovered_points_z.data(), points.size(), psnr, nrmse, max_diff);
-
-  TonSZ::write_file(argv[4], recovered_points);
+  printf("overflow count: %d\n", overflow_count);
+  printf("Max L2 error: %f\n", max_l2_error);
+  acc_mse /= points.size();
+  float max_x = -1e9;
+  float max_y = -1e9;
+  float max_z = -1e9;
+  float min_x = 1e9;
+  float min_y = 1e9;
+  float min_z = 1e9;
+  for (auto & point : points) {
+    max_x = std::max(max_x, point.x());
+    max_y = std::max(max_y, point.y());
+    max_z = std::max(max_z, point.z());
+    min_x = std::min(min_x, point.x());
+    min_y = std::min(min_y, point.y());
+    min_z = std::min(min_z, point.z());
+  }
+  double range = (max_x - min_x) * (max_x - min_x) + (max_y - min_y) * (max_y - min_y) + (max_z - min_z) * (max_z - min_z);
+  double psnr_p2p = 10.0 * std::log10(range / acc_mse);
+  printf("p2p psnr: %lf\n", psnr_p2p);
+  printf("MSE: %f, range: %f\n", acc_mse, range);
+  printf("Max diff: %f, %f, %f\n", max_x, max_y, max_z);
   return 0;
 }

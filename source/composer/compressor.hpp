@@ -8,6 +8,7 @@
 #include <cstring>
 #include <stdexcept>
 #include "../quantizer/truncated_octahedron_quantizer.hpp"
+#include "../quantizer/adaptive_quantizer.hpp"
 #include "../quantizer/cube_quantizer.hpp"
 #include "../io/fileUtils.hpp"
 #include "../encoder/huffman_encoder.hpp"
@@ -15,27 +16,9 @@
 #include "../preprocessor/z_order_curve.hpp"
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
+#include <set>
+
 namespace TonSZ {
-
-    auto compress_u8_vector(const std::vector<uint8_t>& data, int compression_level = 3) -> std::vector<uint8_t> {
-        size_t input_size = data.size() * sizeof(uint8_t);
-        size_t max_compressed_size = ZSTD_compressBound(input_size);
-
-        std::vector<uint8_t> compressed(max_compressed_size);
-
-        size_t compressed_size = ZSTD_compress(
-            compressed.data(), max_compressed_size,
-            data.data(), input_size,
-            compression_level
-        );
-
-        if (ZSTD_isError(compressed_size)) {
-            throw std::runtime_error(ZSTD_getErrorName(compressed_size));
-        }
-
-        compressed.resize(compressed_size);  // Trim unused space
-        return compressed;
-    }
 
     template<typename T>
     class Compressor {
@@ -47,28 +30,52 @@ namespace TonSZ {
             ~Compressor() = default;
 
             auto compress(std::vector<Eigen::RowVector<T, 3> >& points) -> std::vector<uint8_t> {
+
+                Eigen::RowVector3<T> offset;
+                auto const shifted_points = shift_points<T>(points, offset);
                 std::unique_ptr<BaseQuantizer<T>> quantizer;
                 if (quantizer_type_ == QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON) {
                     quantizer = std::make_unique<TruncatedOctahedronQuantizer<T>>(l2_bound_);
+                } else if (quantizer_type_ == QUANTIZER_TYPE::ADAPTIVE) {
+                    quantizer = std::make_unique<AdaptiveQuantizer<T>>(l2_bound_);
                 } else {
                     quantizer = std::make_unique<CubeQuantizer<T>>(l2_bound_);
                 }
-                auto const quantized_points = quantizer->quantize(points);
+                std::vector<T> params;
+                auto quantized_points = quantizer->quantize(shifted_points, params);
 
-                Eigen::RowVector3i offset;
-                auto shifted_points = shift_points<int>(quantized_points, offset);
+                // Count unique quantized points
+                std::vector<Eigen::RowVector3i> unique_points;
+                struct RowVector3iComparator {
+                    bool operator()(const Eigen::RowVector3i& a, const Eigen::RowVector3i& b) const {
+                        if(a.x() != b.x()) return a.x() < b.x();
+                        if(a.y() != b.y()) return a.y() < b.y();
+                        return a.z() < b.z();
+                    }
+                };
+
+                std::set<Eigen::RowVector3i, RowVector3iComparator> unique_set;
+                for(const auto& p : quantized_points) {
+                    unique_set.insert(p);
+                }
+
+                 {
+                    std::cout << "Total points: " << quantized_points.size() << std::endl;
+                    std::cout << "Unique points: " << unique_set.size() << std::endl;
+                    std::cout << "Duplicate ratio: " << 1.0 - (double)unique_set.size() / quantized_points.size() << std::endl;
+                }
                 
-                std::vector<size_t> sorted_indices = z_order_sort_indices(shifted_points);
+                std::vector<size_t> sorted_indices = z_order_sort_indices(quantized_points);
 
                 if (is_debugging_) {
                     write_file_bin<size_t>("sorted_indices.bin", sorted_indices);
                 }
 
                 apply_permutation_inplace<Eigen::RowVector<T, 3> >(points, sorted_indices);
-                apply_permutation_inplace<Eigen::RowVector3i>(shifted_points, sorted_indices);
+                apply_permutation_inplace<Eigen::RowVector<int, 3> >(quantized_points, sorted_indices);
 
                 auto delta_encoder = DeltaEncoder<int>();
-                auto delta_encoded_points = delta_encoder.encode(shifted_points);
+                auto delta_encoded_points = delta_encoder.encode(quantized_points);
 
                 std::vector<int> coordwise_values = std::vector<int>(points.size() * 3);
                 for (size_t i = 0; i < points.size(); ++i) {
@@ -95,10 +102,14 @@ namespace TonSZ {
 
                 uint64_t num_points = points.size();
                 append_value(num_points);
+                append_value(params.size());
+                for (size_t i = 0; i < params.size(); ++i) {
+                    append_value(params[i]);
+                }
 
-                append_value(static_cast<int32_t>(offset.x()));
-                append_value(static_cast<int32_t>(offset.y()));
-                append_value(static_cast<int32_t>(offset.z()));
+                append_value(offset.x());
+                append_value(offset.y());
+                append_value(offset.z());
 
                 uint32_t meta_size = meta.size();
                 append_value(meta_size);

@@ -5,11 +5,12 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <utility>
 
 namespace TonSZ {
 
     template<typename Type>
-    void verify(Type *ori_data, Type *data, size_t num_elements, double &psnr, double &nrmse, double &max_diff) {
+    std::pair<double, double> verify(Type *ori_data, Type *data, size_t num_elements, double &psnr, double &nrmse, double &max_diff) {
         size_t i = 0;
         double Max = ori_data[0];
         double Min = ori_data[0];
@@ -71,6 +72,7 @@ namespace TonSZ {
         printf("acEff=%f\n", acEff);
 //        printf("errAutoCorr=%.10f\n", autocorrelation1DLag1<double>(diff, num_elements, diff_sum / num_elements));
         free(diff);
+        return std::make_pair(psnr, range);
     }
 
 } // namespace TonSZ

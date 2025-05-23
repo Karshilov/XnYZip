@@ -6,36 +6,70 @@
 
 namespace TonSZ {
 
-    template<typename T>
-    inline auto get_transform_matrix(float const TRUNC_OCT_SCALE) -> Eigen::Matrix<T, 3, 3> {
-        Eigen::Matrix<T, 3, 3> A;
-        A << 0, 1, 1,
-             1, 0, 1,
-             1, 1, 0;
-        return A;
-    }
+    #define BASE_BITS 8
+    #define BASE (1 << BASE_BITS)
+    #define MASK (BASE - 1)
+    #define DIGITS(v, shift) (((v) >> shift) & MASK)
 
-    template<typename T>
-    inline auto get_inverse_transform_matrix(float const TRUNC_OCT_SCALE) -> Eigen::Matrix<T, 3, 3> {
-        return get_transform_matrix<T>(TRUNC_OCT_SCALE).inverse();
-    }
+    template <typename T>
+    void radix_sort(T *start, T *end) {
 
-    template<typename T>
-    inline auto transform_point(Eigen::RowVector<T, 3> const& point, Eigen::Matrix<T, 3, 3> const& transform_matrix) -> Eigen::RowVector<T, 3> {
-        return point * transform_matrix.transpose();
-    }
+    //    SZ3::Timer timer(true);
 
-    template<typename T>
-    inline auto inverse_transform_point(Eigen::RowVector<T, 3> const& point, Eigen::Matrix<T, 3, 3> const& inverse_transform_matrix) -> Eigen::RowVector<T, 3> {
-        printf("point: %f %f %f\n", point[0], point[1], point[2]);
-        printf("inverse_transform_matrix: %f %f %f\n", inverse_transform_matrix(0, 0), inverse_transform_matrix(0, 1), inverse_transform_matrix(0, 2));
-        printf("inverse_transform_matrix: %f %f %f\n", inverse_transform_matrix(1, 0), inverse_transform_matrix(1, 1), inverse_transform_matrix(1, 2));
-        printf("inverse_transform_matrix: %f %f %f\n", inverse_transform_matrix(2, 0), inverse_transform_matrix(2, 1), inverse_transform_matrix(2, 2));
-        auto result = point * inverse_transform_matrix.transpose();
-        printf("result: %f %f %f\n", result[0], result[1], result[2]);
-        return result;
-    }
+        size_t numElements = end - start;
+        T* buffer = new T[numElements];
+        int total_digits = sizeof(size_t) * 8;
 
+        for(int shift = 0; shift < total_digits; shift+=BASE_BITS) {
+            size_t bucket[BASE] = {0};
+            size_t offset[BASE] = {0};
+
+            for(size_t i = 0; i < numElements; i++){
+                // mask out the current digit number
+                bucket[DIGITS(start[i].id, shift)]++;
+            }
+
+            // update bucket to prefix-sum
+            for (size_t i = 1; i < BASE; i++) {
+                offset[i] = offset[i - 1] + bucket[i - 1];
+            }
+
+            for(size_t i = 0; i < numElements; i++) {
+                // according to the current digits, get bin index in local_bucket
+                size_t cur_num_digit = DIGITS(start[i].id, shift);
+                // according to the value in the current thread's bin index, get the position that the number should be assigned to
+                size_t pos = offset[cur_num_digit]++;
+                // assgin the number to the new position
+                buffer[pos] = start[i];
+            }
+
+            // move data
+            T* tmp = start;
+            start = buffer;
+            buffer = tmp;
+        }
+
+    //    double sort_time = timer.stop();
+    //    printf("first sort time = %fs\n", sort_time);
+
+
+        free(buffer);
+
+    //    SZ3::Timer timer(true);
+
+        T *l = start, *r = l;
+        while(l < end){
+            r = l;
+            while(r + 1 < end && l -> id == (r + 1) -> id){
+                ++r;
+            }
+            if(l < r) std::sort(l, r + 1, [&](T u, T v){return u.reid < v.reid;});
+            l = r + 1;
+        }
+
+    //    double sort_time = timer.stop();
+    //    printf("second sort time = %fs\n", sort_time);
+    }
 } // namespace TonSZ
 
 #endif // QUANTIZER_UTILS_HPP

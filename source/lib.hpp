@@ -10,3 +10,7 @@
 #include "./preprocessor/shifting.hpp"
 #include "./composer/compressor.hpp"
 #include "./composer/decompressor.hpp"
+#include "./quantizer/block_quantizer.hpp"
+#include "./quantizer/adaptive_quantizer.hpp"
+#include "./composer/block_compressor.hpp"
+#include "./composer/block_decompressor.hpp"

@@ -8,35 +8,14 @@
 #include <stdexcept>
 #include "../quantizer/truncated_octahedron_quantizer.hpp"
 #include "../quantizer/cube_quantizer.hpp"
+#include "../quantizer/adaptive_quantizer.hpp"
 #include "../io/fileUtils.hpp"
 #include "../encoder/huffman_encoder.hpp"
 #include "../encoder/delta_encoder.hpp"
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
 namespace TonSZ {
-    inline auto decompress_buffer(const std::vector<uint8_t>& compressed) -> std::vector<uint8_t> {
-        unsigned long long const frame_size =
-            ZSTD_getFrameContentSize(compressed.data(), compressed.size());
-        if (frame_size == ZSTD_CONTENTSIZE_ERROR) {
-            throw std::runtime_error("Not a zstd frame");
-        }
-        if (frame_size == ZSTD_CONTENTSIZE_UNKNOWN) {
-            throw std::runtime_error("Original size unknown");
-        }
-        std::vector<uint8_t> out(frame_size);
-        size_t const d_size = ZSTD_decompress(
-            out.data(), frame_size,
-            compressed.data(), compressed.size()
-        );
-        if (ZSTD_isError(d_size)) {
-            throw std::runtime_error(ZSTD_getErrorName(d_size));
-        }
-        if (d_size != frame_size) {
-            throw std::runtime_error("Decompressed size mismatch");
-        }
-        return out;
-    }
-
+    
     template<typename T>
     class Decompressor {
     public:
@@ -56,12 +35,18 @@ namespace TonSZ {
 
             uint64_t num_points = 0;
             read(num_points);
+            uint64_t num_params = 0;
+            read(num_params);
+            std::vector<T> params(num_params);
+            for (size_t i = 0; i < num_params; ++i) {
+                read(params[i]);
+            }
 
-            int32_t offx = 0;
-            int32_t offy = 0;
-            int32_t offz = 0;
+            T offx = 0;
+            T offy = 0;
+            T offz = 0;
             read(offx); read(offy); read(offz);
-            Eigen::RowVector3i offset(offx, offy, offz);
+            Eigen::RowVector3<T> offset(offx, offy, offz);
 
             uint32_t meta_size = 0;
             read(meta_size);
@@ -99,17 +84,20 @@ namespace TonSZ {
 
             TonSZ::DeltaEncoder<int> delta_decoder;
             auto undelta = delta_decoder.decode(coords_i);
-            auto unshifted = TonSZ::unshift_points(undelta, offset);
 
             std::unique_ptr<BaseQuantizer<T>> quantizer;
             if (quantizer_type_ == QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON) {
                 quantizer = std::make_unique<TruncatedOctahedronQuantizer<T>>(l2_bound_);
+            } else if (quantizer_type_ == QUANTIZER_TYPE::ADAPTIVE) {
+                quantizer = std::make_unique<AdaptiveQuantizer<T>>(l2_bound_);
             } else {
                 quantizer = std::make_unique<CubeQuantizer<T>>(l2_bound_);
             }
-            auto recovered = quantizer->recover(unshifted);
+            auto recovered = quantizer->recover(undelta, params);
 
-            return recovered;
+            auto unshifted = TonSZ::unshift_points(recovered, offset);
+
+            return unshifted;
         }
 
     private:
