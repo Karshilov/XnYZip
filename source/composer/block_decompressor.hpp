@@ -90,10 +90,10 @@ namespace TonSZ {
             for (int i = 1; i < blkcnt.size(); i++) blkcnt[i] += blkcnt[i - 1];
             for (int i = 1; i < blk.size(); i++) blk[i] += blk[i - 1];
             
-            write_file_bin("quads-decompressed", quads);
-            write_file_bin("repos-decompressed", repos);
-            write_file_bin("cnt-decompressed", blkcnt);
-            write_file_bin("blk-decompressed", blk);
+            // write_file_bin("quads-decompressed", quads);
+            // write_file_bin("repos-decompressed", repos);
+            // write_file_bin("cnt-decompressed", blkcnt);
+            // write_file_bin("blk-decompressed", blk);
 
             T ox, oy, oz;
             read_value(ox);

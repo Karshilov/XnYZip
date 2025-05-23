@@ -99,10 +99,10 @@ namespace TonSZ {
 
                 auto [blk, cnt, quads, repos, ords] = block_quantize(quantized_points, 128, 128, 128, range_x, range_y, range_z);
 
-                write_file_bin("blk-compressed", blk);
-                write_file_bin("cnt-compressed", cnt);
-                write_file_bin("quads-compressed", quads);
-                write_file_bin("repos-compressed", repos);
+                // write_file_bin("blk-compressed", blk);
+                // write_file_bin("cnt-compressed", cnt);
+                // write_file_bin("quads-compressed", quads);
+                // write_file_bin("repos-compressed", repos);
              
                 auto copy_points = points;
                 for (size_t i = 0; i < ords.size(); i++) {
