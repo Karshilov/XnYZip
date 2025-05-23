@@ -138,8 +138,6 @@ auto block_quantize(
         prevQuad = quad;
         prevRe   = reid;
     }
-    printf("Last point x: %d, y: %d, z: %d\n", pts[n - 1].x(), pts[n - 1].y(), pts[n - 1].z());
-    printf("Last point mapping: %lu, %u, %lu\n", M.blkst[M.blkst.size() - 1], M.quads[n - 1], M.repos[n - 1]);
     return M;
 }
 
@@ -180,11 +178,6 @@ auto recover_from_lcp_meta(
                     size_t idx = (pbx + ((quadj & 0x01) >> 0) * bx + (reposj % bx));
                     size_t idy = (pby + ((quadj & 0x02) >> 1) * by + (reposj / bx % by));
                     size_t idz = (pbz + ((quadj & 0x04) >> 2) * bz + (reposj / bx / by));
-
-                    if (i == blkst.size() - 1 && j_ == blkcnt[i] - 1) {
-                        printf("decompression last point mapping: %lu, %lu, %lu\n", blkst[i], quadj, reposj);
-                        printf("decompression last point: %lu, %lu, %lu\n", idx, idy, idz);
-                    }
 
                     coords.emplace_back(Eigen::RowVector3<T>{static_cast<T>(idx), static_cast<T>(idy), static_cast<T>(idz)});
 
