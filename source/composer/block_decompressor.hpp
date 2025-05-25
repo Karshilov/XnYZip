@@ -1,6 +1,7 @@
 #ifndef TON_SZ_BLOCK_DECOMPRESSOR_HPP
 #define TON_SZ_BLOCK_DECOMPRESSOR_HPP
 
+#include <cstdint>
 #include <vector>
 #include <Eigen/Dense>
 #include <zstd.h>
@@ -12,7 +13,9 @@
 #include "../quantizer/adaptive_quantizer.hpp"
 #include "../io/fileUtils.hpp"
 #include "../encoder/huffman_encoder.hpp"
+#include "../encoder/golomb_rice_encoder.hpp"
 #include "../encoder/bitpacking_encoder.hpp"
+#include "../encoder/p_for_delta_encoder.hpp"
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
 
@@ -68,12 +71,30 @@ namespace TonSZ {
             read_value(blk_size);
             read_value(meta_size);
             meta.assign(p, p + meta_size); p += meta_size;
+            data.assign(p, p + blk_size); p += blk_size;
+            auto patches = GolombRiceCoder<uint64_t>::unpack({meta, data});
+
+            read_value(blk_size);
+            read_value(meta_size);
+            meta.assign(p, p + meta_size); p += meta_size;
             std::vector<uint8_t> encoded(p, p + blk_size); p += blk_size;
             auto encoder = HuffmanEncoder<uint64_t>();
             encoder.load_meta(meta);
-            auto repos = encoder.decode(encoded, num_points);
+            auto deltas = encoder.decode(encoded, num_points);
+
+            auto p_for_delta_encoder = PForDeltaEncoder<uint64_t>();
+            PForDeltaData<uint64_t> p_for_delta_data;
+            p_for_delta_data.patches = patches;
+            p_for_delta_data.deltas = deltas;
+            auto repos = p_for_delta_encoder.decode(p_for_delta_data);
 
             // std::cout << "decompressing: repos_size: " << blk_size << ", meta_size: " << meta_size << std::endl;
+
+            read_value(blk_size);
+            read_value(meta_size);
+            meta.assign(p, p + meta_size); p += meta_size;
+            data.assign(p, p + blk_size); p += blk_size;
+            auto patches2 = GolombRiceCoder<uint8_t>::unpack({meta, data});
 
             read_value(blk_size);
             read_value(meta_size);
@@ -81,7 +102,13 @@ namespace TonSZ {
             encoded.assign(p, p + blk_size); p += blk_size;
             auto encoder2 = HuffmanEncoder<uint8_t>();
             encoder2.load_meta(meta);
-            auto quads = encoder2.decode(encoded, num_points);
+            auto deltas2 = encoder2.decode(encoded, num_points);
+
+            auto p_for_delta_encoder2 = PForDeltaEncoder<uint8_t>();
+            PForDeltaData<uint8_t> p_for_delta_data2;
+            p_for_delta_data2.patches = patches2;
+            p_for_delta_data2.deltas = deltas2;
+            auto quads = p_for_delta_encoder2.decode(p_for_delta_data2);
 
             // std::cout << "decompressing: quads_size: " << blk_size << ", meta_size: " << meta_size << std::endl;
 
@@ -90,11 +117,6 @@ namespace TonSZ {
             for (int i = 1; i < blkcnt.size(); i++) blkcnt[i] += blkcnt[i - 1];
             for (int i = 1; i < blk.size(); i++) blk[i] += blk[i - 1];
             
-            // write_file_bin("quads-decompressed", quads);
-            // write_file_bin("repos-decompressed", repos);
-            // write_file_bin("cnt-decompressed", blkcnt);
-            // write_file_bin("blk-decompressed", blk);
-
             T ox, oy, oz;
             read_value(ox);
             read_value(oy);
@@ -109,7 +131,7 @@ namespace TonSZ {
             lcp_meta.quads = quads;
             lcp_meta.repos = repos;
 
-            auto coords = recover_from_lcp_meta<int>(lcp_meta, 128, 128, 128, range_x, range_y, range_z);
+            auto coords = recover_from_lcp_meta<int>(lcp_meta, 64, 64, 64, range_x, range_y, range_z);
 
             // std::cout << "decompressing: coords_size: " << coords.size() << std::endl;
 

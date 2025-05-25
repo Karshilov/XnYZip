@@ -2,6 +2,7 @@
 #define TON_SZ_BLOCK_COMPRESSOR_HPP
 
 #include <algorithm>
+#include <cstdint>
 #include <vector>
 #include <Eigen/Dense>
 #include <iostream>
@@ -15,7 +16,9 @@
 #include "../io/fileUtils.hpp"
 #include "../encoder/huffman_encoder.hpp"
 #include "../encoder/delta_encoder.hpp"
+#include "../encoder/p_for_delta_encoder.hpp"
 #include "../encoder/bitpacking_encoder.hpp"
+#include "../encoder/golomb_rice_encoder.hpp"
 #include "../preprocessor/z_order_curve.hpp"
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
@@ -97,7 +100,7 @@ namespace TonSZ {
                 append_value(range_y);
                 append_value(range_z);
 
-                auto [blk, cnt, quads, repos, ords] = block_quantize(quantized_points, 128, 128, 128, range_x, range_y, range_z);
+                auto [blk, cnt, quads, repos, ords] = block_quantize(quantized_points, 64, 64, 64, range_x, range_y, range_z);
 
                 // write_file_bin("blk-compressed", blk);
                 // write_file_bin("cnt-compressed", cnt);
@@ -136,10 +139,30 @@ namespace TonSZ {
 
                 // std::cout << "cnt size: " << data2.size() << ", meta size: " << meta2.size() << std::endl;
 
+
+                auto p_for_delta_encoder = PForDeltaEncoder<uint64_t>();
+                auto p_for_delta_data = p_for_delta_encoder.encode(repos);
+
+                std::cout << "patches size of repos: " << p_for_delta_data.patches.size() << std::endl;
+                std::cout << "deltas size of repos: " << p_for_delta_data.deltas.size() << std::endl;
+
+                auto golomb_rice_encoder = GolombRiceCoder<uint64_t>();
+                auto [meta_p, data_p] = golomb_rice_encoder.pack(p_for_delta_data.patches);
+
+                append_value(data_p.size());
+                append_value(meta_p.size());
+                buffer.insert(buffer.end(), meta_p.begin(), meta_p.end());
+                buffer.insert(buffer.end(), data_p.begin(), data_p.end());
+
+                auto test_zstd_p = compress_u8_vector(data_p);
+                std::cout << "bit rate (bitpacking): " << (double)data_p.size() * 8 / p_for_delta_data.patches.size() << std::endl;
+                std::cout << "patches size (zstd): " << test_zstd_p.size() << std::endl;
+                std::cout << "compression ratio of patches (zstd): " << (double)data_p.size() / test_zstd_p.size() << std::endl;
+
                 auto encoder = HuffmanEncoder<uint64_t>();
-                encoder.build(repos);
+                encoder.build(p_for_delta_data.deltas);
                 auto meta3 = encoder.get_meta();
-                auto compressed = encoder.encode(repos);
+                auto compressed = encoder.encode(p_for_delta_data.deltas);
 
                 append_value(compressed.size());
                 append_value(meta3.size());
@@ -148,10 +171,28 @@ namespace TonSZ {
 
                 // std::cout << "repos size: " << compressed.size() << ", meta size: " << meta3.size() << std::endl;
 
+                auto p_for_delta_encoder2 = PForDeltaEncoder<uint8_t>();
+                auto p_for_delta_data2 = p_for_delta_encoder2.encode(quads);
+
+                std::cout << "patches size of quads: " << p_for_delta_data2.patches.size() << std::endl;
+                std::cout << "deltas size of quads: " << p_for_delta_data2.deltas.size() << std::endl;
+
+                auto golomb_rice_encoder2 = GolombRiceCoder<uint8_t>();
+                auto [meta_p2, data_p2] = golomb_rice_encoder2.pack(p_for_delta_data2.patches);
+
+                append_value(data_p2.size());
+                append_value(meta_p2.size());
+                buffer.insert(buffer.end(), meta_p2.begin(), meta_p2.end());
+                buffer.insert(buffer.end(), data_p2.begin(), data_p2.end());
+
+                auto test_zstd_p2 = compress_u8_vector(data_p2);
+                std::cout << "bit rate (bitpacking): " << (double)data_p2.size() * 8 / p_for_delta_data2.patches.size() << std::endl;
+                std::cout << "patches size (zstd): " << test_zstd_p2.size() << std::endl;
+
                 auto encoder2 = HuffmanEncoder<uint8_t>();
-                encoder2.build(quads);
+                encoder2.build(p_for_delta_data2.deltas);
                 auto meta4 = encoder2.get_meta();
-                auto compressed4 = encoder2.encode(quads);
+                auto compressed4 = encoder2.encode(p_for_delta_data2.deltas);
 
                 append_value(compressed4.size());
                 append_value(meta4.size());

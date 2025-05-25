@@ -42,7 +42,7 @@ namespace TonSZ {
                     quantizer = std::make_unique<CubeQuantizer<T>>(l2_bound_);
                 }
                 std::vector<T> params;
-                auto quantized_points = quantizer->quantize(shifted_points, params);
+                auto quantized_points = quantizer->quantize(points, params);
 
                 // Count unique quantized points
                 std::vector<Eigen::RowVector3i> unique_points;

@@ -167,6 +167,7 @@ auto recover_from_lcp_meta(
                 size_t prequad = 0;
                 size_t prerepos = 0;
 
+
                  for (size_t j_ = 0; j_ < blkcnt[i]; j_++) {
 
                     if (quads[j] != 0) prerepos = 0;
