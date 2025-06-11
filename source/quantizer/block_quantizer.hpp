@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <Eigen/Dense>
+#include "../preprocessor/z_order_curve.hpp"
 
 struct NodeWithOrder {
     uint64_t id;   
@@ -98,7 +99,7 @@ auto block_quantize(
         size_t cz = p.z() / bz;
         size_t dz = p.z() % bz;
         uint64_t id   = (cx / 2) + (cy / 2) * nx + (cz / 2) * nx * ny;
-        vec[i] = { id, (dx + dy * bx + dz * bx * by) | ((cx & 1) << 60) | ((cy & 1) << 61) |
+        vec[i] = { id, TonSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}) | ((cx & 1) << 60) | ((cy & 1) << 61) |
                                       ((cz & 1) << 62), i };
     }
     radix_sort<NodeWithOrder>(vec.data(), vec.data() + n);
@@ -176,9 +177,11 @@ auto recover_from_lcp_meta(
                     prerepos = reposj;
                     prequad = quadj;
 
-                    size_t idx = (pbx + ((quadj & 0x01) >> 0) * bx + (reposj % bx));
-                    size_t idy = (pby + ((quadj & 0x02) >> 1) * by + (reposj / bx % by));
-                    size_t idz = (pbz + ((quadj & 0x04) >> 2) * bz + (reposj / bx / by));
+                    Eigen::RowVector3i decoded = TonSZ::decode_morton_code(reposj);
+
+                    size_t idx = (pbx + ((quadj & 0x01) >> 0) * bx + decoded[0]);
+                    size_t idy = (pby + ((quadj & 0x02) >> 1) * by + decoded[1]);
+                    size_t idz = (pbz + ((quadj & 0x04) >> 2) * bz + decoded[2]);
 
                     coords.emplace_back(Eigen::RowVector3<T>{static_cast<T>(idx), static_cast<T>(idy), static_cast<T>(idz)});
 

@@ -30,9 +30,8 @@ namespace TonSZ {
                 result.deltas = std::vector<T>();
 
                 auto copy_data = data;
-                double ratio = std::is_same<T, uint8_t>::value ? 0.9 : 0.999;
                 std::sort(copy_data.begin(), copy_data.end());
-                T lim = copy_data[copy_data.size() * ratio];
+                T lim = 254;
 
                 for (size_t i = 0; i < data.size(); i++) {
                     if (data[i] > lim) {

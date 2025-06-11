@@ -46,6 +46,8 @@ auto main(int argc, char* argv[]) -> int
 
   }
 
+  TonSZ::write_file_bin(argv[4], recovered_points);
+
   double acc_mse = 0;
   float max_l2_error = 0;
   int overflow_count = 0;
