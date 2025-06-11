@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <Eigen/Dense>
 #include "../preprocessor/z_order_curve.hpp"
+#include "../io/fileUtils.hpp"
 
 struct NodeWithOrder {
     uint64_t id;   
@@ -120,12 +121,14 @@ auto block_quantize(
     size_t i = -1;
     uint64_t prevId   = uint64_t(-1);
     uint64_t prevQuad = 0, prevRe = 0;
+    std::vector<uint64_t> re_temp(n);
     for (size_t j = 0; j < n; ++j) {
         auto &node = vec[j];
         M.ords[j] = node.ord;
         uint64_t id   = node.id;
         size_t quad = node.reid >> 60;
         size_t reid = node.reid & 0x0fffffffffffffff;
+        re_temp[j] = reid;
         if (id != prevId) {
             M.blkst[++i] = prevId = id;
             prevQuad = 0;
@@ -139,6 +142,7 @@ auto block_quantize(
         prevQuad = quad;
         prevRe   = reid;
     }
+    TonSZ::write_file_bin("re_temp.bin", re_temp);
     return M;
 }
 

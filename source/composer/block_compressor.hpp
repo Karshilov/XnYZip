@@ -22,7 +22,7 @@
 #include "../preprocessor/z_order_curve.hpp"
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
-#include <set>
+#include <map>
 
 namespace TonSZ {
 
@@ -67,18 +67,24 @@ namespace TonSZ {
                     }
                 };
 
-                std::set<Eigen::RowVector3i, RowVector3iComparator> unique_set;
+                std::map<Eigen::RowVector3i, int, RowVector3iComparator> unique_map;
                 for(const auto& p : quantized_points) {
-                    unique_set.insert(p);
+                    unique_map[p]++;
                 }
 
-                 {
-                    std::cout << "Total points: " << quantized_points.size() << std::endl;
-                    std::cout << "Unique points: " << unique_set.size() << std::endl;
-                    std::cout << "Duplicate ratio: " << 1.0 - (double)unique_set.size() / quantized_points.size() << std::endl;
+                quantized_points.clear();
+                int dup_cnt = 0;
+                std::vector<int> cnts;
+                for(const auto& [p, cnt] : unique_map) {
+                    dup_cnt += cnt;
+                    cnts.push_back(cnt);
+                    quantized_points.push_back(p);
                 }
 
-                uint64_t num_points = points.size();
+                std::cout << "Unique points: " << unique_map.size() << std::endl;
+                std::cout << "Duplicate ratio: " << 1.0 - (double)unique_map.size() / quantized_points.size() << std::endl;
+
+                uint64_t num_points = unique_map.size();
                 append_value(num_points);
                 append_value(params.size());
                 for (size_t i = 0; i < params.size(); ++i) {
@@ -110,6 +116,11 @@ namespace TonSZ {
                 auto copy_points = points;
                 for (size_t i = 0; i < ords.size(); i++) {
                     points[i] = copy_points[ords[i]];
+                }
+
+                auto copy_cnts = cnts;
+                for (int i = 0; i < cnts.size(); i++) {
+                    cnts[i] = copy_cnts[ords[i]];
                 }
 
                 quantized_points.clear();
@@ -146,8 +157,7 @@ namespace TonSZ {
                 std::cout << "patches size of repos: " << p_for_delta_data.patches.size() << std::endl;
                 std::cout << "deltas size of repos: " << p_for_delta_data.deltas.size() << std::endl;
 
-                auto golomb_rice_encoder = GolombRiceCoder<uint64_t>();
-                auto [meta_p, data_p] = golomb_rice_encoder.pack(p_for_delta_data.patches);
+                auto [meta_p, data_p] = GolombRiceCoder<uint64_t>::pack(p_for_delta_data.patches);
 
                 append_value(data_p.size());
                 append_value(meta_p.size());
@@ -199,16 +209,29 @@ namespace TonSZ {
                 buffer.insert(buffer.end(), meta4.begin(), meta4.end());
                 buffer.insert(buffer.end(), compressed4.begin(), compressed4.end());
 
-                // std::cout << "quads size: " << compressed4.size() << ", meta size: " << meta4.size() << std::endl;
+                auto encoder3 = HuffmanEncoder<int>();
 
-                // std::cout << "quads length: " << quads.size() << std::endl;
-                // std::cout << "repos length: " << repos.size() << std::endl;
-                // std::cout << "cnt length: " << cnt.size() << std::endl;
-                // std::cout << "blk length: " << blk.size() << std::endl;
+                // for (int i = cnts.size() - 1; i > 0; i--) cnts[i] -= cnts[i - 1];
 
-                // std::cout << "original size of coords: " << points.size() * 3 * sizeof(int) << std::endl;
-                // std::cout << "compressed size of coords: " << compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t) << std::endl;
-                // std::cout << "compression ratio of coords: " << (double)points.size() * 3 * sizeof(int) / (compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t)) << std::endl;
+                encoder3.build(cnts);
+                auto meta5 = encoder3.get_meta();
+                auto compressed5 = encoder3.encode(cnts);
+
+                append_value(compressed5.size());
+                append_value(meta5.size());
+                buffer.insert(buffer.end(), meta5.begin(), meta5.end());
+                buffer.insert(buffer.end(), compressed5.begin(), compressed5.end());
+
+                std::cout << "quads size: " << compressed4.size() << ", meta size: " << meta4.size() << std::endl;
+
+                std::cout << "quads length: " << quads.size() << std::endl;
+                std::cout << "repos length: " << repos.size() << std::endl;
+                std::cout << "cnt length: " << cnt.size() << std::endl;
+                std::cout << "blk length: " << blk.size() << std::endl;
+
+                std::cout << "original size of coords: " << points.size() * 3 * sizeof(int) << std::endl;
+                std::cout << "compressed size of coords: " << compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t) << std::endl;
+                std::cout << "compression ratio of coords: " << (double)points.size() * 3 * sizeof(int) / (compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t)) << std::endl;
 
                 append_value(offset.x());
                 append_value(offset.y());

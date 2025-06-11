@@ -117,12 +117,6 @@ namespace TonSZ {
             for (int i = 1; i < blkcnt.size(); i++) blkcnt[i] += blkcnt[i - 1];
             for (int i = 1; i < blk.size(); i++) blk[i] += blk[i - 1];
             
-            T ox, oy, oz;
-            read_value(ox);
-            read_value(oy);
-            read_value(oz);
-            Eigen::RowVector3<T> offset(ox, oy, oz);
-
             // std::cout << "decompressing: offset: " << ox << ", " << oy << ", " << oz << std::endl;
 
             LCPMeta lcp_meta;
@@ -132,6 +126,21 @@ namespace TonSZ {
             lcp_meta.repos = repos;
 
             auto coords = recover_from_lcp_meta<int>(lcp_meta, 64, 64, 64, range_x, range_y, range_z);
+
+            read_value(blk_size);
+            read_value(meta_size);
+            meta.assign(p, p + meta_size); p += meta_size;
+            encoded.assign(p, p + blk_size); p += blk_size;
+            auto encoder3 = HuffmanEncoder<int>();
+            encoder3.load_meta(meta);
+            auto cnts = encoder3.decode(encoded, num_points);
+
+            std::vector<Eigen::RowVector3i> full_coords;
+            for (int i = 0; i < coords.size(); i++) {
+                for (int j = 0; j < cnts[i]; j++) {
+                    full_coords.push_back(coords[i]);
+                }
+            }
 
             // std::cout << "decompressing: coords_size: " << coords.size() << std::endl;
 
@@ -144,9 +153,14 @@ namespace TonSZ {
                 quantizer = std::make_unique<CubeQuantizer<T>>(l2_bound_);
             }
 
-            auto recovered_points = quantizer->recover(coords, params);
+            auto recovered_points = quantizer->recover(full_coords, params);
 
             // std::cout << "decompressing: recovered_points_size: " << recovered_points.size() << std::endl;
+            T ox, oy, oz;
+            read_value(ox);
+            read_value(oy);
+            read_value(oz);
+            Eigen::RowVector3<T> offset(ox, oy, oz);
 
             auto unshifted = TonSZ::unshift_points(recovered_points, offset);
 
