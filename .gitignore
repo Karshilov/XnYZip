@@ -13,3 +13,5 @@ compile_commands.json
 conan_cache_*.tgz
 *.bin
 *.ton
+data/
+*.f32

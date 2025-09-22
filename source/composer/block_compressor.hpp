@@ -68,6 +68,7 @@ namespace TonSZ {
                 };
 
                 std::map<Eigen::RowVector3i, int, RowVector3iComparator> unique_map;
+                size_t original_size = quantized_points.size();
                 for(const auto& p : quantized_points) {
                     unique_map[p]++;
                 }
@@ -81,8 +82,8 @@ namespace TonSZ {
                     quantized_points.push_back(p);
                 }
 
-                std::cout << "Unique points: " << unique_map.size() << std::endl;
-                std::cout << "Duplicate ratio: " << 1.0 - (double)unique_map.size() / quantized_points.size() << std::endl;
+                printf("Unique points: %lu\n", unique_map.size());
+                printf("Duplicate ratio: %.3f\n", 1.0 - (double)unique_map.size() / original_size);
 
                 uint64_t num_points = unique_map.size();
                 append_value(num_points);
