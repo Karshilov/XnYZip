@@ -15,3 +15,4 @@ conan_cache_*.tgz
 *.ton
 data/
 *.f32
+.cache/
