@@ -51,12 +51,14 @@ auto main(int argc, char* argv[]) -> int
   double acc_mse = 0;
   float max_l2_error = 0;
   int overflow_count = 0;
+  std::vector<float> errors {};
   for (int i = 0; i < points.size(); i++) {
     // printf("points[%d]: %f, %f, %f\n", i, points[i].x(), points[i].y(), points[i].z());
     // printf("recovered_points[%d]: %f, %f, %f\n", i, recovered_points[i].x(), recovered_points[i].y(), recovered_points[i].z());
     acc_mse += (points[i].x() - recovered_points[i].x()) * (points[i].x() - recovered_points[i].x());
     acc_mse += (points[i].y() - recovered_points[i].y()) * (points[i].y() - recovered_points[i].y());
     acc_mse += (points[i].z() - recovered_points[i].z()) * (points[i].z() - recovered_points[i].z());
+    errors.push_back((points[i] - recovered_points[i]).norm());
     // printf("distance %d: %f\n", i, (points[i] - recovered_points[i]).norm());
     if ((points[i] - recovered_points[i]).norm() > std::stof(argv[3])) {
       // printf("points[%d]: %f, %f, %f\n", i, points[i].x(), points[i].y(), points[i].z());
@@ -66,6 +68,9 @@ auto main(int argc, char* argv[]) -> int
     }
     max_l2_error = std::max(max_l2_error, (points[i] - recovered_points[i]).norm());
   }
+
+  TonSZ::write_file_bin("errors-" + std::string(argv[2]) + ".bin", errors);
+  
   printf("overflow count: %d\n", overflow_count);
   printf("Max L2 error: %f\n", max_l2_error);
   acc_mse /= points.size();
