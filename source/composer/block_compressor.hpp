@@ -124,6 +124,8 @@ namespace TonSZ {
                     cnts[i] = copy_cnts[ords[i]];
                 }
 
+                write_file_bin("counts-reordered", cnts);
+
                 quantized_points.clear();
 
                 for (int i = cnt.size() - 1; i > 0; i--) cnt[i] -= cnt[i - 1];
