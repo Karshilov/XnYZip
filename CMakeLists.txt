@@ -22,19 +22,27 @@ find_package(TBB REQUIRED)
 
 find_package(OpenMP REQUIRED)
 
-add_library(tonSZ_lib INTERFACE)
+file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
+    "${PROJECT_SOURCE_DIR}/source/*.cpp"
+)
+
+add_library(tonSZ_lib ${SRC_FILES})
 
 target_include_directories(tonSZ_lib
-    INTERFACE "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/source>"
+    PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/source>"
+           ${ZSTD_INCLUDE_DIRS}
 )
 
-target_compile_features(tonSZ_lib INTERFACE cxx_std_20)
+target_compile_features(tonSZ_lib PUBLIC cxx_std_20)
 
 target_link_libraries(tonSZ_lib
-    INTERFACE fmt::fmt Eigen3::Eigen TBB::tbb OpenMP::OpenMP_CXX ${ZSTD_LIBRARIES}
+    PUBLIC
+        fmt::fmt
+        Eigen3::Eigen
+        TBB::tbb
+        OpenMP::OpenMP_CXX
+        ${ZSTD_LIBRARIES}
 )
-
-target_include_directories(tonSZ_lib INTERFACE ${ZSTD_INCLUDE_DIRS})
 
 
 # ---- Declare executable ----
