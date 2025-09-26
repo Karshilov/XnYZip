@@ -101,6 +101,8 @@ auto block_quantize(
         size_t cz = p.z() / bz;
         size_t dz = p.z() % bz;
         uint64_t id   = (cx / 2) + (cy / 2) * nx + (cz / 2) * nx * ny;
+        // vec[i] = { .id=id, .reid=(dx + dy * bx + dz * bx * by) | ((cx & 1) << 60) | ((cy & 1) << 61) |
+        //                               ((cz & 1) << 62), .ord=i };
         // vec[i] = { .id=id, .reid=TonSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}) | ((cx & 1) << 60) | ((cy & 1) << 61) |
         //                               ((cz & 1) << 62), .ord=i };
         vec[i] = { .id=id, .reid=mve::mortonToHilbert3(TonSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}), 20) | ((cx & 1) << 60) | ((cy & 1) << 61) |
@@ -190,6 +192,9 @@ auto recover_from_lcp_meta(
                     size_t idx = (pbx + ((quadj & 0x01) >> 0) * bx + static_cast<size_t>(decoded[0]));
                     size_t idy = (pby + ((quadj & 0x02) >> 1) * by + static_cast<size_t>(decoded[1]));
                     size_t idz = (pbz + ((quadj & 0x04) >> 2) * bz + static_cast<size_t>(decoded[2]));
+                    // size_t idx = (pbx + ((quadj & 0x01) >> 0) * bx + (reposj % bx));
+                    // size_t idy = (pby + ((quadj & 0x02) >> 1) * by + (reposj / bx % by));
+                    // size_t idz = (pbz + ((quadj & 0x04) >> 2) * bz + (reposj / bx / by));
 
                     coords.emplace_back(Eigen::RowVector3<T>{static_cast<T>(idx), static_cast<T>(idy), static_cast<T>(idz)});
 
