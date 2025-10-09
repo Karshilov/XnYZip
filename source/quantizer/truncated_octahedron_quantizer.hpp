@@ -6,7 +6,7 @@
 #include <Eigen/Dense>
 #include <cstdlib>
 
-namespace TonSZ {
+namespace XnYSZ {
 
     template<typename T>
     const auto is_integer = [](T const& x) -> bool {
@@ -102,6 +102,6 @@ namespace TonSZ {
     private:
     };
 
-} // namespace TonSZ
+} // namespace XnYSZ
 
 #endif // TRUNCATED_OCTAHEDRON_QUANTIZER_HPP

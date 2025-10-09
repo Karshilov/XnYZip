@@ -6,7 +6,7 @@
 #include <Eigen/Dense>
 #include <cmath>
 
-namespace TonSZ {
+namespace XnYSZ {
 
     template<typename T>
     class AdaptiveQuantizer : public BaseQuantizer<T> {
@@ -97,6 +97,6 @@ namespace TonSZ {
         }
     };
 
-} // namespace TonSZ
+} // namespace XnYSZ
 
 #endif // ADAPTIVE_QUANTIZER_HPP

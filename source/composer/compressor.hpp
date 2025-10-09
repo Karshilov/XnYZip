@@ -18,7 +18,7 @@
 #include "utils.hpp"
 #include <set>
 
-namespace TonSZ {
+namespace XnYSZ {
 
     template<typename T>
     class Compressor {

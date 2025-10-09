@@ -14,7 +14,7 @@
 #include "../encoder/delta_encoder.hpp"
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
-namespace TonSZ {
+namespace XnYSZ {
     
     template<typename T>
     class Decompressor {
@@ -67,7 +67,7 @@ namespace TonSZ {
                 write_file_bin<uint8_t>("decompressed.raw", buffer);
             }
 
-            TonSZ::HuffmanEncoder<int> huff;
+            XnYSZ::HuffmanEncoder<int> huff;
             huff.load_meta(meta);
             size_t total_ints = num_points * 3;
             auto decoded_ints = huff.decode(code_stream, total_ints);
@@ -82,7 +82,7 @@ namespace TonSZ {
                 );
             }
 
-            TonSZ::DeltaEncoder<int> delta_decoder;
+            XnYSZ::DeltaEncoder<int> delta_decoder;
             auto undelta = delta_decoder.decode(coords_i);
 
             std::unique_ptr<BaseQuantizer<T>> quantizer;
@@ -95,7 +95,7 @@ namespace TonSZ {
             }
             auto recovered = quantizer->recover(undelta, params);
 
-            auto unshifted = TonSZ::unshift_points(recovered, offset);
+            auto unshifted = XnYSZ::unshift_points(recovered, offset);
 
             return unshifted;
         }

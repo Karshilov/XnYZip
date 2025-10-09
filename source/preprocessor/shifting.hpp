@@ -5,7 +5,7 @@
 #include <Eigen/Dense>
 #include <limits>
 
-namespace TonSZ {
+namespace XnYSZ {
 
     template<typename T>
     auto shift_points(std::vector<Eigen::RowVector<T, 3>> const& points, Eigen::RowVector<T, 3> & offset) -> std::vector<Eigen::RowVector<T, 3>> {
@@ -49,6 +49,6 @@ namespace TonSZ {
         return unshifted_points;
     }
 
-}  // namespace TonSZ
+}  // namespace XnYSZ
 
 #endif  // SHIFTING_HPP

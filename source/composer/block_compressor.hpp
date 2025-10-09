@@ -24,7 +24,7 @@
 #include "utils.hpp"
 #include <map>
 
-namespace TonSZ {
+namespace XnYSZ {
 
     template<typename T>
     class BlockCompressor {

@@ -7,10 +7,10 @@ endif()
 
 add_custom_target(
     run-exe
-    COMMAND tonSZ_exe
+    COMMAND XnYSZ_exe
     VERBATIM
 )
-add_dependencies(run-exe tonSZ_exe)
+add_dependencies(run-exe XnYSZ_exe)
 
 option(BUILD_MCSS_DOCS "Build documentation using Doxygen and m.css" OFF)
 if(BUILD_MCSS_DOCS)

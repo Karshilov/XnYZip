@@ -1,6 +1,6 @@
-# tonSZ
+# XnYSZ
 
-This is the tonSZ project.
+This is the XnYSZ project.
 
 # Building and installing
 
@@ -12,10 +12,10 @@ See the [CONTRIBUTING](CONTRIBUTING.md) document.
 
 # Usage
 
-After build tonSZ:
+After build XnYSZ:
 
 ```sh
-./build/tonSZ <input_file> <quantizer_type (cube/octa)> <L2 bound> <decompression_file_name>
+./build/XnYSZ <input_file> <quantizer_type (cube/octa)> <L2 bound> <decompression_file_name>
 ```
 
 input file should be a float32 bin file, arranged like x1, y1, z1, x2, y2, z2 ....

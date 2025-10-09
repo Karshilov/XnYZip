@@ -5,7 +5,7 @@
 #include <vector>
 #include <Eigen/Dense>
 
-namespace TonSZ {
+namespace XnYSZ {
 
     template<typename T>
     class CubeQuantizer : public BaseQuantizer<T> {
@@ -39,6 +39,6 @@ namespace TonSZ {
 
     };
 
-} // namespace TonSZ
+} // namespace XnYSZ
 
 #endif // CUBE_QUANTIZER_HPP

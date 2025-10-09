@@ -19,7 +19,7 @@
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
 
-namespace TonSZ {
+namespace XnYSZ {
 
     template<typename T>
     class BlockDecompressor {
@@ -162,7 +162,7 @@ namespace TonSZ {
             read_value(oz);
             Eigen::RowVector3<T> offset(ox, oy, oz);
 
-            auto unshifted = TonSZ::unshift_points(recovered_points, offset);
+            auto unshifted = XnYSZ::unshift_points(recovered_points, offset);
 
             // std::cout << "decompressing: unshifted_points_size: " << unshifted.size() << std::endl;
 
@@ -175,6 +175,6 @@ namespace TonSZ {
         bool is_debugging_;
     };
 
-} // namespace TonSZ
+} // namespace XnYSZ
 
 #endif // TON_SZ_BLOCK_DECOMPRESSOR_HPP
