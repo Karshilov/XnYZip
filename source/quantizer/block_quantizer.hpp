@@ -103,9 +103,9 @@ auto block_quantize(
         uint64_t id   = (cx / 2) + (cy / 2) * nx + (cz / 2) * nx * ny;
         // vec[i] = { .id=id, .reid=(dx + dy * bx + dz * bx * by) | ((cx & 1) << 60) | ((cy & 1) << 61) |
         //                               ((cz & 1) << 62), .ord=i };
-        // vec[i] = { .id=id, .reid=TonSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}) | ((cx & 1) << 60) | ((cy & 1) << 61) |
+        // vec[i] = { .id=id, .reid=XnYSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}) | ((cx & 1) << 60) | ((cy & 1) << 61) |
         //                               ((cz & 1) << 62), .ord=i };
-        vec[i] = { .id=id, .reid=mve::mortonToHilbert3(TonSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}), 20) | ((cx & 1) << 60) | ((cy & 1) << 61) |
+        vec[i] = { .id=id, .reid=mve::mortonToHilbert3(XnYSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}), 20) | ((cx & 1) << 60) | ((cy & 1) << 61) |
                                       ((cz & 1) << 62), .ord=i };
     }
     radix_sort<NodeWithOrder>(vec.data(), vec.data() + n);
@@ -183,11 +183,11 @@ auto recover_from_lcp_meta(
                     prerepos = reposj;
                     prequad = quadj;
 
-                    // Eigen::RowVector3i decoded = TonSZ::decode_morton_code(reposj);
+                    // Eigen::RowVector3i decoded = XnYSZ::decode_morton_code(reposj);
                     // uint64_t decoded_x, decoded_y, decoded_z;
                     // hilbert_decode(reposj, decoded_x, decoded_y, decoded_z);
                     auto morton = mve::hilbertToMorton3(reposj, 20);
-                    auto decoded = TonSZ::decode_morton_code(morton);
+                    auto decoded = XnYSZ::decode_morton_code(morton);
 
                     size_t idx = (pbx + ((quadj & 0x01) >> 0) * bx + static_cast<size_t>(decoded[0]));
                     size_t idy = (pby + ((quadj & 0x02) >> 1) * by + static_cast<size_t>(decoded[1]));

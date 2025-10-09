@@ -11,7 +11,7 @@
 #include <iostream>
 #include <cmath>
 
-namespace TonSZ {
+namespace XnYSZ {
 
 // A simple Huffman encoder/decoder using a codebook lookup.
 // Supports integral symbol types up to 64 bits.
@@ -175,6 +175,6 @@ private:
     }
 };
 
-} // namespace TonSZ
+} // namespace XnYSZ
 
 #endif // HUFFMAN_ENCODER_HPP

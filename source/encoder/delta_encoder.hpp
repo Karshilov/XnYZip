@@ -4,7 +4,7 @@
 #include <vector>
 #include <Eigen/Dense>
 
-namespace TonSZ {
+namespace XnYSZ {
 
     template<typename T>
     class DeltaEncoder {
@@ -40,6 +40,6 @@ namespace TonSZ {
         }
     };
 
-}  // namespace TonSZ
+}  // namespace XnYSZ
 
 #endif  // DELTA_ENCODER_HPP

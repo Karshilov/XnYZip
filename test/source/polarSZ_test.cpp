@@ -2,8 +2,8 @@
 
 #include "lib.hpp"
 
-TEST_CASE("Name is tonSZ", "[library]")
+TEST_CASE("Name is XnYSZ", "[library]")
 {
   auto const lib = library {};
-  REQUIRE(lib.name == "tonSZ");
+  REQUIRE(lib.name == "XnYSZ");
 }

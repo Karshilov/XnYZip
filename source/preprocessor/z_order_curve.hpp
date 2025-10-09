@@ -8,7 +8,7 @@
 #include <execution> 
 #include <numeric>
 
-namespace TonSZ {
+namespace XnYSZ {
 
     // Split bits with zero interleaving (21-bit support)
     inline auto split_by_3(uint32_t n) -> uint64_t {
@@ -75,6 +75,6 @@ namespace TonSZ {
         }
     }
 
-}  // namespace TonSZ
+}  // namespace XnYSZ
 
 #endif // Z_ORDER_CURVE_HPP

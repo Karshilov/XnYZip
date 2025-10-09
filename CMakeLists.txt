@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.14)
 include(cmake/prelude.cmake)
 
 project(
-    tonSZ
+    XnYSZ
     VERSION 0.1.0
     DESCRIPTION "Short description"
     HOMEPAGE_URL "https://example.com/"
@@ -26,16 +26,16 @@ file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
     "${PROJECT_SOURCE_DIR}/source/*.cpp"
 )
 
-add_library(tonSZ_lib ${SRC_FILES})
+add_library(XnYSZ_lib ${SRC_FILES})
 
-target_include_directories(tonSZ_lib
+target_include_directories(XnYSZ_lib
     PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/source>"
            ${ZSTD_INCLUDE_DIRS}
 )
 
-target_compile_features(tonSZ_lib PUBLIC cxx_std_20)
+target_compile_features(XnYSZ_lib PUBLIC cxx_std_20)
 
-target_link_libraries(tonSZ_lib
+target_link_libraries(XnYSZ_lib
     PUBLIC
         fmt::fmt
         Eigen3::Eigen
@@ -47,14 +47,14 @@ target_link_libraries(tonSZ_lib
 
 # ---- Declare executable ----
 
-add_executable(tonSZ_exe source/main.cpp)
-add_executable(tonSZ::exe ALIAS tonSZ_exe)
+add_executable(XnYSZ_exe source/main.cpp)
+add_executable(XnYSZ::exe ALIAS XnYSZ_exe)
 
-set_property(TARGET tonSZ_exe PROPERTY OUTPUT_NAME tonSZ)
+set_property(TARGET XnYSZ_exe PROPERTY OUTPUT_NAME XnYSZ)
 
-target_compile_features(tonSZ_exe PRIVATE cxx_std_20)
+target_compile_features(XnYSZ_exe PRIVATE cxx_std_20)
 
-target_link_libraries(tonSZ_exe PRIVATE tonSZ_lib)
+target_link_libraries(XnYSZ_exe PRIVATE XnYSZ_lib)
 
 # ---- Install rules ----
 
@@ -64,12 +64,12 @@ endif()
 
 # ---- Developer mode ----
 
-if(NOT tonSZ_DEVELOPER_MODE)
+if(NOT XnYSZ_DEVELOPER_MODE)
   return()
 elseif(NOT PROJECT_IS_TOP_LEVEL)
   message(
       AUTHOR_WARNING
-      "Developer mode is intended for developers of tonSZ"
+      "Developer mode is intended for developers of XnYSZ"
   )
 endif()
 

@@ -1,6 +1,6 @@
 install(
-    TARGETS tonSZ_exe
-    RUNTIME COMPONENT tonSZ_Runtime
+    TARGETS XnYSZ_exe
+    RUNTIME COMPONENT XnYSZ_Runtime
 )
 
 if(PROJECT_IS_TOP_LEVEL)

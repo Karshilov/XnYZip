@@ -7,7 +7,7 @@
 auto main(int argc, char* argv[]) -> int
 {
   auto const file_name = argv[1];
-  auto points = TonSZ::read_file<float>(file_name);
+  auto points = XnYSZ::read_file<float>(file_name);
   std::vector<Eigen::RowVector3f> recovered_points;
 
   if (argc != 5) {
@@ -16,38 +16,37 @@ auto main(int argc, char* argv[]) -> int
   }
 
   if (std::string(argv[2]) == "cube") {
-    auto compressor = TonSZ::BlockCompressor<float>(TonSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
+    auto compressor = XnYSZ::BlockCompressor<float>(XnYSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
     auto compressed_points = compressor.compress(points);
 
     printf("compression ratio: %f\n", (float)points.size() * 3 * sizeof(float) / compressed_points.size() * sizeof(uint8_t));
 
-    auto decompressor = TonSZ::BlockDecompressor<float>(TonSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
+    auto decompressor = XnYSZ::BlockDecompressor<float>(XnYSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
     recovered_points = decompressor.decompress(compressed_points);
 
   } else if (std::string(argv[2]) == "octa") {
-    auto compressor = TonSZ::BlockCompressor<float>(TonSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
+    auto compressor = XnYSZ::BlockCompressor<float>(XnYSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
     auto compressed_points = compressor.compress(points);
 
     printf("compression ratio: %f\n", (float)points.size() * 3 * sizeof(float) / compressed_points.size() * sizeof(uint8_t));
 
-    auto decompressor = TonSZ::BlockDecompressor<float>(TonSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
+    auto decompressor = XnYSZ::BlockDecompressor<float>(XnYSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
     recovered_points = decompressor.decompress(compressed_points);
 
     printf("decompressed finished, size: %lu\n", recovered_points.size());
 
   } else if (std::string(argv[2]) == "adaptive") {
-    auto compressor = TonSZ::BlockCompressor<float>(TonSZ::QUANTIZER_TYPE::ADAPTIVE, std::stof(argv[3]));
+    auto compressor = XnYSZ::BlockCompressor<float>(XnYSZ::QUANTIZER_TYPE::ADAPTIVE, std::stof(argv[3]));
     auto compressed_points = compressor.compress(points);
 
     printf("compression ratio: %f\n", (float)points.size() * 3 * sizeof(float) / compressed_points.size() * sizeof(uint8_t));
 
-    auto decompressor = TonSZ::BlockDecompressor<float>(TonSZ::QUANTIZER_TYPE::ADAPTIVE, std::stof(argv[3]));
+    auto decompressor = XnYSZ::BlockDecompressor<float>(XnYSZ::QUANTIZER_TYPE::ADAPTIVE, std::stof(argv[3]));
     recovered_points = decompressor.decompress(compressed_points);
 
   }
 
-  TonSZ::write_file_bin(argv[4], recovered_points);
-
+  XnYSZ::write_file(argv[4], recovered_points);
   double acc_mse = 0;
   float max_l2_error = 0;
   int overflow_count = 0;
@@ -69,7 +68,7 @@ auto main(int argc, char* argv[]) -> int
     max_l2_error = std::max(max_l2_error, (points[i] - recovered_points[i]).norm());
   }
 
-  TonSZ::write_file_bin("errors-" + std::string(argv[2]) + ".bin", errors);
+  XnYSZ::write_file_bin("errors-" + std::string(argv[2]) + ".bin", errors);
   
   printf("overflow count: %d\n", overflow_count);
   printf("Max L2 error: %f\n", max_l2_error);
