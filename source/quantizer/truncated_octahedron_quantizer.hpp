@@ -24,10 +24,9 @@ namespace XnYSZ {
 
             for (const auto& pt : points) {
 
-                // Eigen::RowVector<T, 3> uvw = transform_point<T>(pt, get_inverse_transform_matrix<T>(TRUNC_OCT_SCALE_)) + Eigen::RowVector<T, 3>::Constant(0.5);
                 Eigen::RowVector<T, 3> quantized_xyz = pt / (2 * this->TRUNC_OCT_SCALE_ / sqrt(5));
                 
-                auto nearest_lattice = [&](const Eigen::RowVector3f &p) -> Eigen::RowVector3i {
+                auto nearest_lattice = [&](const Eigen::RowVector<T, 3> &p) -> Eigen::RowVector3i {
                     auto nearest_even = [](float v) -> int {
                         int lo = int(std::floor(v));
                         if (lo & 1) {
@@ -51,13 +50,13 @@ namespace XnYSZ {
                         O[i] = nearest_odd(p[i]);
                     }
 
-                    float dE = (p - E.cast<float>()).squaredNorm();
-                    float dO = (p - O.cast<float>()).squaredNorm();
+                    T dE = (p - E.cast<T>()).squaredNorm();
+                    T dO = (p - O.cast<T>()).squaredNorm();
 
 
-                    if (std::min(dE, dO) > 1.25) {
-                        throw std::runtime_error("Quantized point is too far from the original point");
-                    }
+                    // if (std::min(dE, dO) > 1.25) {
+                    //     throw std::runtime_error("Quantized point is too far from the original point");
+                    // }
 
                     return (dE <= dO) ? E : O;
                 };
