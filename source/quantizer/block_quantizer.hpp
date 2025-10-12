@@ -22,6 +22,7 @@ struct LCPMeta {
     std::vector<uint8_t>  quads; 
     std::vector<uint64_t> repos; 
     std::vector<size_t> ords;
+    bool is_hilbert;
 };
 
 #define BASE_BITS 8
@@ -84,7 +85,8 @@ template <typename T>
 auto block_quantize(
     std::vector<Eigen::RowVector3<T> >& pts,
     size_t bx, size_t by, size_t bz,
-    size_t nx, size_t ny, size_t nz) -> LCPMeta
+    size_t nx, size_t ny, size_t nz,
+    bool is_hilbert) -> LCPMeta
 {
     size_t n = pts.size();
     std::vector<NodeWithOrder> vec(n);
@@ -103,10 +105,13 @@ auto block_quantize(
         uint64_t id   = (cx / 2) + (cy / 2) * nx + (cz / 2) * nx * ny;
         // vec[i] = { .id=id, .reid=(dx + dy * bx + dz * bx * by) | ((cx & 1) << 60) | ((cy & 1) << 61) |
         //                               ((cz & 1) << 62), .ord=i };
-        // vec[i] = { .id=id, .reid=XnYSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}) | ((cx & 1) << 60) | ((cy & 1) << 61) |
-        //                               ((cz & 1) << 62), .ord=i };
-        vec[i] = { .id=id, .reid=mve::mortonToHilbert3(XnYSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}), 20) | ((cx & 1) << 60) | ((cy & 1) << 61) |
+        if (!is_hilbert) {
+            vec[i] = { .id=id, .reid=XnYSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}) | ((cx & 1) << 60) | ((cy & 1) << 61) |
                                       ((cz & 1) << 62), .ord=i };
+        } else {
+            vec[i] = { .id=id, .reid=mve::mortonToHilbert3(XnYSZ::morton_code(Eigen::RowVector3i{static_cast<int>(dx), static_cast<int>(dy), static_cast<int>(dz)}), 20) | ((cx & 1) << 60) | ((cy & 1) << 61) |
+                                      ((cz & 1) << 62), .ord=i };
+        }
     }
     radix_sort<NodeWithOrder>(vec.data(), vec.data() + n);
     auto copy_pts = pts;
@@ -118,6 +123,7 @@ auto block_quantize(
         if (vec[i].id != vec[i-1].id)
             ++blknum;
     LCPMeta M;
+    M.is_hilbert = is_hilbert;
     M.blkst .resize(blknum);
     M.blkcnt.resize(blknum);
     M.quads .resize(n);
@@ -162,7 +168,7 @@ auto recover_from_lcp_meta(
     ny = ny / (2 * by) + 1;
     nz = nz / (2 * bz) + 1;
 
-    auto [blkst, blkcnt, quads, repos, ords] = meta;
+    auto [blkst, blkcnt, quads, repos, ords, is_hilbert] = meta;
 
     int i = 0, j = 0;
     for (; i < blkst.size(); i++) {
@@ -186,7 +192,7 @@ auto recover_from_lcp_meta(
                     // Eigen::RowVector3i decoded = XnYSZ::decode_morton_code(reposj);
                     // uint64_t decoded_x, decoded_y, decoded_z;
                     // hilbert_decode(reposj, decoded_x, decoded_y, decoded_z);
-                    auto morton = mve::hilbertToMorton3(reposj, 20);
+                    auto morton = is_hilbert ? mve::hilbertToMorton3(reposj, 20) : reposj;
                     auto decoded = XnYSZ::decode_morton_code(morton);
 
                     size_t idx = (pbx + ((quadj & 0x01) >> 0) * bx + static_cast<size_t>(decoded[0]));

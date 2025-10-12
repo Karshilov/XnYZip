@@ -49,6 +49,9 @@ namespace XnYSZ {
             read_value(range_y);
             read_value(range_z);
 
+            bool is_hilbert;
+            read_value(is_hilbert);
+
             // std::cout << "decompressing: num_points: " << num_points << ", param_size: " << param_size << ", range_x: " << range_x << ", range_y: " << range_y << ", range_z: " << range_z << std::endl;
 
             size_t blk_size, meta_size;
@@ -56,7 +59,7 @@ namespace XnYSZ {
             read_value(meta_size);
             std::vector<uint8_t> meta(p, p + meta_size); p += meta_size;
             std::vector<uint8_t> data(p, p + blk_size); p += blk_size;
-            auto blk = BitPacker<uint64_t>::unpack({meta, data});
+            auto blk = BitPacker<uint64_t>::unpack({.meta=meta, .data=data});
 
             // std::cout << "decompressing: blk_size: " << blk_size << ", meta_size: " << meta_size << std::endl;
 
@@ -64,7 +67,7 @@ namespace XnYSZ {
             read_value(meta_size);
             meta.assign(p, p + meta_size); p += meta_size;
             data.assign(p, p + blk_size); p += blk_size;
-            auto blkcnt = BitPacker<uint64_t>::unpack({meta, data});
+            auto blkcnt = BitPacker<uint64_t>::unpack({.meta=meta, .data=data});
 
             // std::cout << "decompressing: cnt_size: " << blk_size << ", meta_size: " << meta_size << std::endl;
 
@@ -72,7 +75,7 @@ namespace XnYSZ {
             read_value(meta_size);
             meta.assign(p, p + meta_size); p += meta_size;
             data.assign(p, p + blk_size); p += blk_size;
-            auto patches = GolombRiceCoder<uint64_t>::unpack({meta, data});
+            auto patches = GolombRiceCoder<uint64_t>::unpack({.meta=meta, .data=data});
 
             read_value(blk_size);
             read_value(meta_size);
@@ -94,7 +97,7 @@ namespace XnYSZ {
             read_value(meta_size);
             meta.assign(p, p + meta_size); p += meta_size;
             data.assign(p, p + blk_size); p += blk_size;
-            auto patches2 = GolombRiceCoder<uint8_t>::unpack({meta, data});
+            auto patches2 = GolombRiceCoder<uint8_t>::unpack({.meta=meta, .data=data});
 
             read_value(blk_size);
             read_value(meta_size);
@@ -130,6 +133,7 @@ namespace XnYSZ {
             lcp_meta.blkcnt = blkcnt;
             lcp_meta.quads = quads;
             lcp_meta.repos = repos;
+            lcp_meta.is_hilbert = is_hilbert;
 
             auto coords = recover_from_lcp_meta<int>(lcp_meta, 64, 64, 64, range_x, range_y, range_z);
 

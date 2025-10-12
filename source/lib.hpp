@@ -14,3 +14,4 @@
 #include "./quantizer/adaptive_quantizer.hpp"
 #include "./composer/block_compressor.hpp"
 #include "./composer/block_decompressor.hpp"
+#include "./statistics/timer.hpp"
