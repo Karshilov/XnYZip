@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 #include <Eigen/Dense>
 #include <iostream>
@@ -22,7 +23,6 @@
 #include "../preprocessor/z_order_curve.hpp"
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
-#include <map>
 
 namespace XnYSZ {
 
@@ -35,7 +35,7 @@ namespace XnYSZ {
 
             ~BlockCompressor() = default;
 
-            auto compress(std::vector<Eigen::RowVector<T, 3> >& points) -> std::vector<uint8_t> {
+            auto compress(std::vector<Eigen::RowVector<T, 3> >& points, bool curve_type) -> std::vector<uint8_t> {
                 Eigen::RowVector3<T> offset;
                 auto const shifted_points = shift_points<T>(points, offset);
                 
@@ -59,15 +59,16 @@ namespace XnYSZ {
 
                 // Count unique quantized points
                 std::vector<Eigen::RowVector3i> unique_points;
-                struct RowVector3iComparator {
-                    bool operator()(const Eigen::RowVector3i& a, const Eigen::RowVector3i& b) const {
-                        if(a.x() != b.x()) return a.x() < b.x();
-                        if(a.y() != b.y()) return a.y() < b.y();
-                        return a.z() < b.z();
+                struct RowVector3iHasher {
+                    std::size_t operator()(const Eigen::RowVector3i& v) const {
+                        uint64_t h = (uint64_t)v[0] * 73856093u ^
+                        (uint64_t)v[1] * 19349663u ^
+                        (uint64_t)v[2] * 83492791u;
+                        return h;
                     }
                 };
 
-                std::map<Eigen::RowVector3i, int, RowVector3iComparator> unique_map;
+                std::unordered_map<Eigen::RowVector3i, int, RowVector3iHasher> unique_map;
                 size_t original_size = quantized_points.size();
                 for(const auto& p : quantized_points) {
                     unique_map[p]++;
@@ -107,7 +108,7 @@ namespace XnYSZ {
                 append_value(range_y);
                 append_value(range_z);
 
-                auto [blk, cnt, quads, repos, ords] = block_quantize(quantized_points, 64, 64, 64, range_x, range_y, range_z);
+                auto [blk, cnt, quads, repos, ords, is_hilbert] = block_quantize(quantized_points, 64, 64, 64, range_x, range_y, range_z, curve_type);
 
                 // write_file_bin("blk-compressed", blk);
                 // write_file_bin("cnt-compressed", cnt);
@@ -124,8 +125,6 @@ namespace XnYSZ {
                     cnts[i] = copy_cnts[ords[i]];
                 }
 
-                write_file_bin("counts-reordered", cnts);
-
                 quantized_points.clear();
 
                 for (int i = cnt.size() - 1; i > 0; i--) cnt[i] -= cnt[i - 1];
@@ -133,6 +132,7 @@ namespace XnYSZ {
                 for (int i = blk.size() - 1; i > 0; i--) {
                     blk[i] -= blk[i - 1];
                 }
+                append_value(is_hilbert);
 
                 auto bitpacker = BitPacker<uint64_t>();
                 auto [meta, data] = bitpacker.pack(blk);
