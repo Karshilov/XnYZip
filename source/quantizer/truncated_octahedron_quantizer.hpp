@@ -22,47 +22,23 @@ namespace XnYSZ {
             std::vector<Eigen::RowVector3i> quantized_points {};
             quantized_points.reserve(points.size());
 
+            Eigen::RowVector<T, 3> ones = Eigen::RowVector<T, 3>::Ones();
+
             for (const auto& pt : points) {
 
-                // Eigen::RowVector<T, 3> uvw = transform_point<T>(pt, get_inverse_transform_matrix<T>(TRUNC_OCT_SCALE_)) + Eigen::RowVector<T, 3>::Constant(0.5);
                 Eigen::RowVector<T, 3> quantized_xyz = pt / (2 * this->TRUNC_OCT_SCALE_ / sqrt(5));
+
+                auto nearest_lattice_optimized = [&](const Eigen::RowVector<T, 3> &p) -> Eigen::RowVector3i {
+                    Eigen::RowVector<T, 3> E_float = (p * 0.5).array().round().matrix() * 2.0;
+                    Eigen::RowVector<T, 3> O_float = (((p - ones) * 0.5).array().round().matrix() * 2.0) + ones;
                 
-                auto nearest_lattice = [&](const Eigen::RowVector3f &p) -> Eigen::RowVector3i {
-                    auto nearest_even = [](float v) -> int {
-                        int lo = int(std::floor(v));
-                        if (lo & 1) {
-                            lo -= 1;
-                        }
-                        int hi = lo + 2;
-                        return (std::fabs(v - lo) <= std::fabs(hi - v)) ? lo : hi;
-                    };
-                    auto nearest_odd = [](float v) -> int {
-                        int lo = int(std::floor(v));
-                        if ((lo & 1) == 0) {
-                            lo -= 1;
-                        }
-                        int hi = lo + 2;
-                        return (std::fabs(v - lo) <= std::fabs(hi - v)) ? lo : hi;
-                    };
-
-                    Eigen::RowVector3i E, O;
-                    for (int i = 0; i < 3; ++i) {
-                        E[i] = nearest_even(p[i]);
-                        O[i] = nearest_odd(p[i]);
-                    }
-
-                    float dE = (p - E.cast<float>()).squaredNorm();
-                    float dO = (p - O.cast<float>()).squaredNorm();
-
-
-                    if (std::min(dE, dO) > 1.25) {
-                        throw std::runtime_error("Quantized point is too far from the original point");
-                    }
-
-                    return (dE <= dO) ? E : O;
+                    T dE = (p - E_float).squaredNorm();
+                    T dO = (p - O_float).squaredNorm();
+                
+                    return (dE <= dO) ? E_float.template cast<int>() : O_float.template cast<int>();
                 };
 
-                auto node = nearest_lattice(quantized_xyz);
+                auto node = nearest_lattice_optimized(quantized_xyz);
                 if (node[0] & 1) {
                     node[0] += 1;
                     node[0] >>= 1;
