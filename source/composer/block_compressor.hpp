@@ -50,6 +50,42 @@ namespace XnYSZ {
                 std::vector<T> params;
                 auto quantized_points = quantizer->quantize(shifted_points, params);
 
+                double acc_mse = 0;
+                double max_l2_error = 0;
+                int overflow_count = 0;
+                auto recovered_points = quantizer->recover(quantized_points, params);
+                for (int i = 0; i < shifted_points.size(); i++) {
+                  // printf("points[%d]: %f, %f, %f\n", i, points[i].x(), points[i].y(), points[i].z());
+                  // printf("recovered_points[%d]: %f, %f, %f\n", i, recovered_points[i].x(), recovered_points[i].y(), recovered_points[i].z());
+                  double mse = ((shifted_points[i].x() - recovered_points[i].x()) * (shifted_points[i].x() - recovered_points[i].x()))+
+                  ((shifted_points[i].y() - recovered_points[i].y()) * (shifted_points[i].y() - recovered_points[i].y()))+
+                  ((shifted_points[i].z() - recovered_points[i].z()) * (shifted_points[i].z() - recovered_points[i].z()));
+                  acc_mse += mse;
+                  // printf("distance %d: %f\n", i, (points[i] - recovered_points[i]).norm());
+                    max_l2_error = std::max(max_l2_error, sqrt(mse));
+                }
+                printf("Max L2 error: %lf\n", max_l2_error);
+                acc_mse /= shifted_points.size();
+                float max_x = -1e9;
+                float max_y = -1e9;
+                float max_z = -1e9;
+                float min_x = 1e9;
+                float min_y = 1e9;
+                float min_z = 1e9;
+                for (auto & point : points) {
+                  max_x = std::max(max_x, point.x());
+                  max_y = std::max(max_y, point.y());
+                  max_z = std::max(max_z, point.z());
+                  min_x = std::min(min_x, point.x());
+                  min_y = std::min(min_y, point.y());
+                  min_z = std::min(min_z, point.z());
+                }
+                double range = (max_x - min_x) * (max_x - min_x) + (max_y - min_y) * (max_y - min_y) + (max_z - min_z) * (max_z - min_z);
+                double psnr_p2p = 10.0 * std::log10(range / acc_mse);
+                printf("p2p psnr: %lf\n", psnr_p2p);
+                printf("MSE: %f, range: %f\n", acc_mse, range);
+                printf("Max diff: %f, %f, %f\n", max_x, max_y, max_z);
+
                 std::vector<uint8_t> buffer;
 
                 auto append_value = [&](auto v) {

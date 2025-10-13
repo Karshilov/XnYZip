@@ -151,9 +151,7 @@ namespace XnYSZ {
             std::unique_ptr<BaseQuantizer<T>> quantizer;
             if (quantizer_type_ == QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON) {
                 quantizer = std::make_unique<TruncatedOctahedronQuantizer<T>>(l2_bound_);
-            } else if (quantizer_type_ == QUANTIZER_TYPE::ADAPTIVE) {
-                quantizer = std::make_unique<AdaptiveQuantizer<T>>(l2_bound_);
-            } else {
+            }  else {
                 quantizer = std::make_unique<CubeQuantizer<T>>(l2_bound_);
             }
 
