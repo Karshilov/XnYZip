@@ -81,11 +81,6 @@ namespace XnYSZ {
 
                 auto [blk, cnt, quads, repos, ords, is_hilbert] = block_quantize(quantized_points, 64, 64, 64, range_x, range_y, range_z, curve_type);
 
-                // write_file_bin("blk-compressed", blk);
-                // write_file_bin("cnt-compressed", cnt);
-                // write_file_bin("quads-compressed", quads);
-                // write_file_bin("repos-compressed", repos);
-             
                 auto copy_points = points;
                 for (size_t i = 0; i < ords.size(); i++) {
                     points[i] = copy_points[ords[i]];
@@ -132,11 +127,6 @@ namespace XnYSZ {
                 buffer.insert(buffer.end(), meta_p.begin(), meta_p.end());
                 buffer.insert(buffer.end(), data_p.begin(), data_p.end());
 
-                auto test_zstd_p = compress_u8_vector(data_p);
-                std::cout << "bit rate (bitpacking): " << (double)data_p.size() * 8 / p_for_delta_data.patches.size() << std::endl;
-                std::cout << "patches size (zstd): " << test_zstd_p.size() << std::endl;
-                std::cout << "compression ratio of patches (zstd): " << (double)data_p.size() / test_zstd_p.size() << std::endl;
-
                 auto encoder = HuffmanEncoder<uint64_t>();
                 encoder.build(p_for_delta_data.deltas);
                 auto meta3 = encoder.get_meta();
@@ -162,10 +152,6 @@ namespace XnYSZ {
                 append_value(meta_p2.size());
                 buffer.insert(buffer.end(), meta_p2.begin(), meta_p2.end());
                 buffer.insert(buffer.end(), data_p2.begin(), data_p2.end());
-
-                auto test_zstd_p2 = compress_u8_vector(data_p2);
-                std::cout << "bit rate (bitpacking): " << (double)data_p2.size() * 8 / p_for_delta_data2.patches.size() << std::endl;
-                std::cout << "patches size (zstd): " << test_zstd_p2.size() << std::endl;
 
                 auto encoder2 = HuffmanEncoder<uint8_t>();
                 encoder2.build(p_for_delta_data2.deltas);
