@@ -114,10 +114,6 @@ auto block_quantize(
         }
     }
     radix_sort<NodeWithOrder>(vec.data(), vec.data() + n);
-    auto copy_pts = pts;
-    for (int i = 0; i < n; i++) {
-        pts[i] = copy_pts[vec[i].ord];
-    }
     size_t blknum = 1;
     for (size_t i = 1; i < n; ++i)
         if (vec[i].id != vec[i-1].id)
