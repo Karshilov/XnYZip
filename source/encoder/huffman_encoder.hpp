@@ -110,25 +110,39 @@ public:
     std::vector<T> decode(const std::vector<uint8_t>& data, size_t orig_size) const {
         std::vector<T> out;
         out.reserve(orig_size);
-        uint32_t buf = 0; uint8_t buflen = 0;
-        auto emit = [&](){
+    
+        if (code_table.size() == 1) {
+            auto sym = code_table.begin()->first;
+            out.assign(orig_size, sym);
+            return out;
+        }
+    
+        uint32_t buf = 0;
+        uint8_t buflen = 0;
+    
+        auto emit = [&]() {
             auto itl = decode_map.find(buflen);
             if (itl != decode_map.end()) {
                 auto its = itl->second.find(buf);
                 if (its != itl->second.end()) {
                     out.push_back(its->second);
-                    buf = 0; buflen = 0;
+                    buf = 0;
+                    buflen = 0;
                 }
             }
         };
-        for (size_t i = 0; i < data.size()*8 && out.size() < orig_size; ++i) {
-            size_t idx = i>>3; int shift = 7 - (i&7);
-            buf = (buf<<1) | ((data[idx]>>shift)&1);
-            ++buflen; emit();
+    
+        for (size_t i = 0; i < data.size() * 8 && out.size() < orig_size; ++i) {
+            size_t idx = i >> 3;
+            int shift = 7 - (i & 7);
+            buf = (buf << 1) | ((data[idx] >> shift) & 1);
+            ++buflen;
+            emit();
         }
+    
         return out;
     }
-
+    
 private:
     struct Code { uint32_t bits; uint8_t length; };
     std::unordered_map<T, Code> code_table;
@@ -141,9 +155,17 @@ private:
     }
 
     void build_code(std::shared_ptr<Node> const &node, uint32_t prefix, uint8_t len) {
-        if (node->isLeaf()) { code_table[node->symbol] = {prefix, len}; return; }
-        build_code(node->left, prefix<<1, len+1);
-        build_code(node->right, (prefix<<1)|1u, len+1);
+        if (node->isLeaf()) {
+            if (len == 0) {
+                code_table[node->symbol] = {0, 1};
+            } else {
+                code_table[node->symbol] = {prefix, len};
+            }
+            return;
+        }
+    
+        build_code(node->left, prefix << 1, len + 1);
+        build_code(node->right, (prefix << 1) | 1u, len + 1);
     }
 
     static void append_uint32(std::vector<uint8_t>& o, uint32_t v) {
