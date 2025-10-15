@@ -1,0 +1,3 @@
+[submodule "source/quantizer/hilbert-curves-cpp"]
+	path = source/quantizer/hilbert-curves-cpp
+	url = https://github.com/eisenwave/hilbert-curves-cpp.git
