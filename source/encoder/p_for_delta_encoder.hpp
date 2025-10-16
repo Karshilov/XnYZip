@@ -26,19 +26,17 @@ namespace XnYSZ {
             ~PForDeltaEncoder() = default;
             auto encode(const std::vector<T>& data) -> PForDeltaData<T> {
                 PForDeltaData<T> result;
-                result.patches = std::vector<T>();
-                result.deltas = std::vector<T>();
-
-                auto copy_data = data;
-                std::sort(copy_data.begin(), copy_data.end());
+                result.deltas.reserve(data.size());
+                result.patches.reserve(data.size() * 0.05);
+            
                 T lim = 254;
-
-                for (size_t i = 0; i < data.size(); i++) {
-                    if (data[i] > lim) {
-                        result.patches.push_back(data[i]);
+            
+                for (const auto& value : data) {
+                    if (value > lim) [[unlikely]] {
+                        result.patches.push_back(value);
                         result.deltas.push_back(0);
                     } else {
-                        result.deltas.push_back(data[i] + 1);
+                        result.deltas.push_back(value + 1);
                     }
                 }
                 return result;
@@ -46,11 +44,13 @@ namespace XnYSZ {
 
             auto decode(const PForDeltaData<T>& data) -> std::vector<T> {
                 std::vector<T> result;
-                for (size_t i = 0, idx = 0; i < data.deltas.size(); i++) {
-                    if (data.deltas[i] == 0) {
-                        result.push_back(data.patches[idx++]);
+                result.reserve(data.deltas.size()); 
+                size_t patch_idx = 0;
+                for (const auto& delta_val : data.deltas) {
+                    if (delta_val == 0) [[unlikely]] {
+                        result.push_back(data.patches[patch_idx++]);
                     } else {
-                        result.push_back(data.deltas[i] - 1);
+                        result.push_back(delta_val - 1);
                     }
                 }
                 return result;
