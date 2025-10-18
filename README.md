@@ -1,6 +1,6 @@
-# XnYSZ
+# XnYZip
 
-This is the XnYSZ project.
+This is the XnYZip project.
 
 # Building and installing
 
@@ -12,11 +12,13 @@ See the [CONTRIBUTING](CONTRIBUTING.md) document.
 
 # Usage
 
-After build XnYSZ:
+After build XnYZip:
 
 ```sh
-./build/XnYSZ <input_file> <quantizer_type (cube/octa)> <L2 bound> <decompression_file_name>
+./build/XnYZip <input_file> <quantizer_type (cube/to)> <L2 bound> <-z/-h> <decompression_file_name>
 ```
+
+-z or -h here means using z-order curve or hilbert curve
 
 input file should be a float32 bin file, arranged like x1, y1, z1, x2, y2, z2 ....
 
