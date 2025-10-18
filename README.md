@@ -2,9 +2,6 @@
 
 This is the XnYZip project.
 
-# Init Submodule
-git submodule update --init   
-
 # Building and installing
 
 See the [BUILDING](BUILDING.md) document.
