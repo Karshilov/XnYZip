@@ -1,8 +1,3 @@
-//
-// Created by Kai Zhao on 10/30/20.
-// Modified by Youyuan Liu on 10/12/25.
-//
-
 #ifndef XNYSZ_TIMER_HPP
 #define XNYSZ_TIMER_HPP
 
