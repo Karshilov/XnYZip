@@ -4,21 +4,18 @@ This is the XnYZip project.
 
 # Building and installing
 
-See the [BUILDING](BUILDING.md) document.
-
-# Contributing
-
-See the [CONTRIBUTING](CONTRIBUTING.md) document.
+See the [HACKING](HACKING.md) and [BUILDING](BUILDING.md) document.
 
 # Usage
 
 After build XnYZip:
 
 ```sh
-./build/XnYZip <input_file> <quantizer_type (cube/to)> <L2 bound> <-z/-h> <decompression_file_name>
+./build/XnYZip <input_file> <quantizer_type (cube/to)> <L2 bound> <-z/-h> <-rle/-normal> <decompression_file_name>
 ```
 
--z or -h here means using z-order curve or hilbert curve
++ `-z` or `-h` here means using z-order curve or hilbert curve
++ use `-rle` and `-normal` to control the usage of RLE
 
 input file should be a float32 bin file, arranged like x1, y1, z1, x2, y2, z2 ....
 
