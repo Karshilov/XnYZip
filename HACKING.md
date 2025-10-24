@@ -1,6 +1,6 @@
 # Hacking
 
-Here is some wisdom to help you build and test this project as a developer and
+<!-- Here is some wisdom to help you build and test this project as a developer and
 potential contributor.
 
 If you plan to contribute, please read the [CONTRIBUTING](CONTRIBUTING.md)
@@ -85,7 +85,7 @@ in the terminal.
 > `File > Settings... > Build, Execution, Deployment > CMake` and in Visual
 > Studio you have to set the option `Never run configure step automatically`
 > in `Tools > Options > CMake` **prior to opening the project**, after which
-> you can manually configure using `Project > Configure Cache`.
+> you can manually configure using `Project > Configure Cache`. -->
 
 ### Dependency manager
 
@@ -105,7 +105,7 @@ cause issues. See the link above for profiles documentation.
 [conan]: https://conan.io/
 [profile]: https://docs.conan.io/2/reference/config_files/profiles.html
 
-### Configure, build and test
+<!-- ### Configure, build and test
 
 If you followed the above instructions, then you can configure, build and test
 the project respectively with the following commands from the project root on
@@ -164,4 +164,4 @@ them respectively. Customization available using the `SPELL_COMMAND` cache
 variable.
 
 [1]: https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html
-[2]: https://cmake.org/download/
+[2]: https://cmake.org/download/ -->
