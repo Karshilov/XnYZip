@@ -6,7 +6,7 @@
 #include <vector>
 #include <Eigen/Dense>
 
-namespace XnYSZ {
+namespace XnYZip {
     template<typename T>
     auto read_file(const std::string& path) -> std::vector<Eigen::RowVector<T, 3>> {
         std::vector<Eigen::RowVector<T, 3>> points;
@@ -70,6 +70,6 @@ namespace XnYSZ {
         file.close();
         return data;
     }
-} // namespace XnYSZ
+} // namespace XnYZip
 
 #endif

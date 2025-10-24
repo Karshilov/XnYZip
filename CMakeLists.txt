@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.14)
 include(cmake/prelude.cmake)
 
 project(
-    XnYSZ
+    XnYZip
     VERSION 0.1.0
     DESCRIPTION "Short description"
     HOMEPAGE_URL "https://example.com/"
@@ -26,16 +26,16 @@ file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
     "${PROJECT_SOURCE_DIR}/source/*.cpp"
 )
 
-add_library(XnYSZ_lib ${SRC_FILES})
+add_library(XnYZip_lib ${SRC_FILES})
 
-target_include_directories(XnYSZ_lib
+target_include_directories(XnYZip_lib
     PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/source>"
            ${ZSTD_INCLUDE_DIRS}
 )
 
-target_compile_features(XnYSZ_lib PUBLIC cxx_std_20)
+target_compile_features(XnYZip_lib PUBLIC cxx_std_20)
 
-target_link_libraries(XnYSZ_lib
+target_link_libraries(XnYZip_lib
     PUBLIC
         fmt::fmt
         Eigen3::Eigen
@@ -47,14 +47,14 @@ target_link_libraries(XnYSZ_lib
 
 # ---- Declare executable ----
 
-add_executable(XnYSZ_exe source/main.cpp)
-add_executable(XnYSZ::exe ALIAS XnYSZ_exe)
+add_executable(XnYZip_exe source/main.cpp)
+add_executable(XnYZip::exe ALIAS XnYZip_exe)
 
-set_property(TARGET XnYSZ_exe PROPERTY OUTPUT_NAME XnYSZ)
+set_property(TARGET XnYZip_exe PROPERTY OUTPUT_NAME XnYZip)
 
-target_compile_features(XnYSZ_exe PRIVATE cxx_std_20)
+target_compile_features(XnYZip_exe PRIVATE cxx_std_20)
 
-target_link_libraries(XnYSZ_exe PRIVATE XnYSZ_lib)
+target_link_libraries(XnYZip_exe PRIVATE XnYZip_lib)
 
 # ---- Install rules ----
 
@@ -64,12 +64,12 @@ endif()
 
 # ---- Developer mode ----
 
-if(NOT XnYSZ_DEVELOPER_MODE)
+if(NOT XnYZip_DEVELOPER_MODE)
   return()
 elseif(NOT PROJECT_IS_TOP_LEVEL)
   message(
       AUTHOR_WARNING
-      "Developer mode is intended for developers of XnYSZ"
+      "Developer mode is intended for developers of XnYZip"
   )
 endif()
 

@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <utility>
 
-namespace XnYSZ {
+namespace XnYZip {
 
     template<typename Type>
     std::pair<double, double> verify(Type *ori_data, Type *data, size_t num_elements, double &psnr, double &nrmse, double &max_diff) {
@@ -75,6 +75,6 @@ namespace XnYSZ {
         return std::make_pair(psnr, range);
     }
 
-} // namespace XnYSZ
+} // namespace XnYZip
 
 #endif // STATISTICS_UTILS_HPP

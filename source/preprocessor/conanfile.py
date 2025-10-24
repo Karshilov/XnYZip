@@ -24,11 +24,11 @@ class Recipe(ConanFile):
         tc = CMakeToolchain(self)
 
         if self.settings.os == "Windows":
-            tc.variables["CMAKE_CXX_FLAGS"] = "/XnYSZp"
+            tc.variables["CMAKE_CXX_FLAGS"] = "/XnYZipp"
         elif self.settings.os == "Linux":
-            tc.variables["CMAKE_CXX_FLAGS"] = "-fXnYSZp -ltbb -O3"
+            tc.variables["CMAKE_CXX_FLAGS"] = "-fXnYZipp -ltbb -O3"
         elif self.settings.os == "Macos":
-            tc.variables["CMAKE_CXX_FLAGS"] = "-Xpreprocessor -fXnYSZp"
+            tc.variables["CMAKE_CXX_FLAGS"] = "-Xpreprocessor -fXnYZipp"
             tc.variables["CMAKE_EXE_LINKER_FLAGS"] = "-lomp"
 
         tc.generate()

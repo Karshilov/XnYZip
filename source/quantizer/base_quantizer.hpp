@@ -4,7 +4,7 @@
 #include <Eigen/Dense>
 #include <vector>
 
-namespace XnYSZ {
+namespace XnYZip {
 
     template<typename T>
     class BaseQuantizer {

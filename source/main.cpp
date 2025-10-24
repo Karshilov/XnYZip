@@ -7,7 +7,7 @@
 auto main(int argc, char* argv[]) -> int
 {
   auto const file_name = argv[1];
-  auto points = XnYSZ::read_file<float>(file_name);
+  auto points = XnYZip::read_file<float>(file_name);
   std::vector<Eigen::RowVector3f> recovered_points;
 
   if (argc != 7) {
@@ -21,75 +21,75 @@ auto main(int argc, char* argv[]) -> int
   std::cout << "Use RLE: " << (use_rle ? "Yes" : "No") << std::endl;
 
   if (std::string(argv[2]) == "cube") {
-    XnYSZ::Timer timer;
+    XnYZip::Timer timer;
     if (use_rle) {
       timer.start();
-      auto compressor = XnYSZ::BlockCompressorRLE<float>(XnYSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
+      auto compressor = XnYZip::BlockCompressorRLE<float>(XnYZip::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
       auto compressed_points = compressor.compress(points, is_hilbert);
 
-      timer.stop("XnYSZ compression");
+      timer.stop("XnYZip compression");
 
       printf("compression ratio: %f\n", (float)points.size() * 3 * sizeof(float) / compressed_points.size() * sizeof(uint8_t));
 
       timer.start();
-      auto decompressor = XnYSZ::BlockDecompressorRLE<float>(XnYSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
+      auto decompressor = XnYZip::BlockDecompressorRLE<float>(XnYZip::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
       recovered_points = decompressor.decompress(compressed_points);
 
-      timer.stop("XnYSZ decompression");
+      timer.stop("XnYZip decompression");
     } else {
       timer.start();
-      auto compressor = XnYSZ::BlockCompressor<float>(XnYSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
+      auto compressor = XnYZip::BlockCompressor<float>(XnYZip::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
       auto compressed_points = compressor.compress(points, is_hilbert);
 
-      timer.stop("XnYSZ compression");
+      timer.stop("XnYZip compression");
 
       printf("compression ratio: %f\n", (float)points.size() * 3 * sizeof(float) / compressed_points.size() * sizeof(uint8_t));
 
       timer.start();
-      auto decompressor = XnYSZ::BlockDecompressor<float>(XnYSZ::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
+      auto decompressor = XnYZip::BlockDecompressor<float>(XnYZip::QUANTIZER_TYPE::CUBE, std::stof(argv[3]));
       recovered_points = decompressor.decompress(compressed_points);
 
-      timer.stop("XnYSZ decompression");
+      timer.stop("XnYZip decompression");
     }
 
   } else if (std::string(argv[2]) == "to") {
-    XnYSZ::Timer timer;
+    XnYZip::Timer timer;
     if (use_rle) {
       timer.start();
-      auto compressor = XnYSZ::BlockCompressorRLE<float>(XnYSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
+      auto compressor = XnYZip::BlockCompressorRLE<float>(XnYZip::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
       auto compressed_points = compressor.compress(points, is_hilbert);
 
-      timer.stop("XnYSZ compression");
+      timer.stop("XnYZip compression");
 
       printf("compression ratio: %f\n", (float)points.size() * 3 * sizeof(float) / compressed_points.size() * sizeof(uint8_t));
 
       timer.start();
-      auto decompressor = XnYSZ::BlockDecompressorRLE<float>(XnYSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
+      auto decompressor = XnYZip::BlockDecompressorRLE<float>(XnYZip::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
       recovered_points = decompressor.decompress(compressed_points);
 
-      timer.stop("XnYSZ decompression");
+      timer.stop("XnYZip decompression");
 
       printf("decompressed finished, size: %lu\n", recovered_points.size());
     } else {
       timer.start();
-      auto compressor = XnYSZ::BlockCompressor<float>(XnYSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
+      auto compressor = XnYZip::BlockCompressor<float>(XnYZip::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
       auto compressed_points = compressor.compress(points, is_hilbert);
 
-      timer.stop("XnYSZ compression");
+      timer.stop("XnYZip compression");
 
       printf("compression ratio: %f\n", (float)points.size() * 3 * sizeof(float) / compressed_points.size() * sizeof(uint8_t));
 
       timer.start();
-      auto decompressor = XnYSZ::BlockDecompressor<float>(XnYSZ::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
+      auto decompressor = XnYZip::BlockDecompressor<float>(XnYZip::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON, std::stof(argv[3]));
       recovered_points = decompressor.decompress(compressed_points);
 
-      timer.stop("XnYSZ decompression");
+      timer.stop("XnYZip decompression");
 
       printf("decompressed finished, size: %lu\n", recovered_points.size());
     }
   }
 
-  XnYSZ::write_file(argv[6], recovered_points);
+  XnYZip::write_file(argv[6], recovered_points);
   if (!use_rle) {
     double acc_mse = 0;
     float max_l2_error = 0;
@@ -112,7 +112,7 @@ auto main(int argc, char* argv[]) -> int
       max_l2_error = std::max(max_l2_error, (points[i] - recovered_points[i]).norm());
     }
 
-    XnYSZ::write_file_bin("errors-" + std::string(argv[2]) + ".bin", errors);
+    XnYZip::write_file_bin("errors-" + std::string(argv[2]) + ".bin", errors);
     
     printf("overflow count: %d\n", overflow_count);
     printf("Max L2 error: %f\n", max_l2_error);

@@ -19,7 +19,7 @@
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
 
-namespace XnYSZ {
+namespace XnYZip {
 
     template<typename T>
     class BlockDecompressor {
@@ -152,7 +152,7 @@ namespace XnYSZ {
 
             // std::cout << "decompressing: recovered_points_size: " << recovered_points.size() << std::endl;
 
-            auto unshifted = XnYSZ::unshift_points(recovered_points, offset);
+            auto unshifted = XnYZip::unshift_points(recovered_points, offset);
 
             // std::cout << "decompressing: unshifted_points_size: " << unshifted.size() << std::endl;
 
@@ -165,6 +165,6 @@ namespace XnYSZ {
         bool is_debugging_;
     };
 
-} // namespace XnYSZ
+} // namespace XnYZip
 
 #endif // TON_SZ_BLOCK_DECOMPRESSOR_HPP

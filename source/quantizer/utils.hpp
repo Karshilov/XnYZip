@@ -4,7 +4,7 @@
 #include <Eigen/Dense>
 #include <cmath>
 
-namespace XnYSZ {
+namespace XnYZip {
 
     #define BASE_BITS 8
     #define BASE (1 << BASE_BITS)
@@ -70,6 +70,6 @@ namespace XnYSZ {
     //    double sort_time = timer.stop();
     //    printf("second sort time = %fs\n", sort_time);
     }
-} // namespace XnYSZ
+} // namespace XnYZip
 
 #endif // QUANTIZER_UTILS_HPP

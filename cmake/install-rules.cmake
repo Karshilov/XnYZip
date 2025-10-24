@@ -1,6 +1,6 @@
 install(
-    TARGETS XnYSZ_exe
-    RUNTIME COMPONENT XnYSZ_Runtime
+    TARGETS XnYZip_exe
+    RUNTIME COMPONENT XnYZip_Runtime
 )
 
 if(PROJECT_IS_TOP_LEVEL)

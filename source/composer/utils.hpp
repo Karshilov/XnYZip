@@ -6,7 +6,7 @@
 #include <zstd.h>
 #include <stdexcept>
 
-namespace XnYSZ {
+namespace XnYZip {
 
     inline auto decompress_buffer(const std::vector<uint8_t>& compressed) -> std::vector<uint8_t> {
         unsigned long long const frame_size =

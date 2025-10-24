@@ -11,7 +11,7 @@
 #include <iostream>
 #include <cmath>
 
-namespace XnYSZ {
+namespace XnYZip {
 
 // A simple Huffman encoder/decoder using a codebook lookup.
 // Supports integral symbol types up to 64 bits.
@@ -197,6 +197,6 @@ private:
     }
 };
 
-} // namespace XnYSZ
+} // namespace XnYZip
 
 #endif // HUFFMAN_ENCODER_HPP

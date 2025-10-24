@@ -5,7 +5,7 @@
 #include <vector>
 #include <Eigen/Dense>
 
-namespace XnYSZ {
+namespace XnYZip {
 
     template<typename T>
     class CubeQuantizer : public BaseQuantizer<T> {
@@ -39,6 +39,6 @@ namespace XnYSZ {
 
     };
 
-} // namespace XnYSZ
+} // namespace XnYZip
 
 #endif // CUBE_QUANTIZER_HPP

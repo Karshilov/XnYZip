@@ -4,7 +4,7 @@
 #include <vector>
 #include <Eigen/Dense>
 
-namespace XnYSZ {
+namespace XnYZip {
 
     template<typename T>
     class DeltaEncoder {
@@ -40,6 +40,6 @@ namespace XnYSZ {
         }
     };
 
-}  // namespace XnYSZ
+}  // namespace XnYZip
 
 #endif  // DELTA_ENCODER_HPP

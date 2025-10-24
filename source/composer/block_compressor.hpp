@@ -24,7 +24,7 @@
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
 
-namespace XnYSZ {
+namespace XnYZip {
 
     template<typename T>
     class BlockCompressor {
@@ -191,6 +191,6 @@ namespace XnYSZ {
             float l2_bound_;
     };
 
-}  // namespace XnYSZ
+}  // namespace XnYZip
 
 #endif // TON_SZ_BLOCK_COMPRESSOR_HPP

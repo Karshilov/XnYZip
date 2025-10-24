@@ -24,7 +24,7 @@
 #include "../preprocessor/shifting.hpp"
 #include "utils.hpp"
 
-namespace XnYSZ {
+namespace XnYZip {
 
     template<typename T>
     class BlockCompressorRLE {

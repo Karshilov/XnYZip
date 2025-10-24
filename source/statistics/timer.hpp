@@ -1,11 +1,11 @@
-#ifndef XNYSZ_TIMER_HPP
-#define XNYSZ_TIMER_HPP
+#ifndef XnYZip_TIMER_HPP
+#define XnYZip_TIMER_HPP
 
 #include <string>
 #include <iostream>
 #include <chrono>
 
-namespace XnYSZ {
+namespace XnYZip {
     class Timer {
     public:
         Timer() = default;
@@ -37,4 +37,4 @@ namespace XnYSZ {
 };
 
 
-#endif //XNYSZ_TIMER_HPP
+#endif //XnYZip_TIMER_HPP

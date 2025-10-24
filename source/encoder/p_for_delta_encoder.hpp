@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <algorithm>
 
-namespace XnYSZ {
+namespace XnYZip {
 
     template<typename T>
     struct PForDeltaData {
@@ -56,6 +56,6 @@ namespace XnYSZ {
                 return result;
             }
     };
-} // namespace XnYSZ
+} // namespace XnYZip
 
 #endif // P_FOR_DELTA_ENCODER_HPP
