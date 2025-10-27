@@ -2,6 +2,8 @@
 
 ## Dependencies
 
+Please install cmake, zstd and tbb in advance.
+
 For a list of dependencies, please refer to [conanfile.py](conanfile.py).
 
 ## Build
