@@ -29,7 +29,7 @@ After build XnYZip:
 + `-z` or `-h` here means using z-order curve or hilbert curve
 + use `-rle` and `-normal` to control the usage of RLE
 
-input file should be a float32 bin file, arranged like x1, y1, z1, x2, y2, z2 .... The provided bin files is in this format already.
+input file should be a float32 bin file, arranged like x1, y1, z1, x2, y2, z2 .... The provided bin files are in this format already.
 
 # Licensing
 
