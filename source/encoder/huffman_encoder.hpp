@@ -10,6 +10,7 @@
 #include <cstring>
 #include <iostream>
 #include <cmath>
+#include <limits>
 
 namespace XnYZip {
 
@@ -29,6 +30,15 @@ class HuffmanEncoder {
 
 public:
     void build(const std::vector<T>& data) {
+        use_exp_golomb_ = false;
+        exp_golomb_k_ = 0;
+        code_table.clear();
+        decode_map.clear();
+
+        if (data.empty()) {
+            return;
+        }
+
         std::unordered_map<T, uint64_t> freq;
         for (auto v : data) freq[v]++;
 
@@ -38,6 +48,13 @@ public:
             entropy -= p * std::log2(p);
         }
         std::cout << "entropy: " << entropy << std::endl;
+
+        if (entropy > 10.0) {
+            std::cout << "[INFO] using exp golomb" << std::endl;
+            use_exp_golomb_ = true;
+            exp_golomb_k_ = select_best_exp_golomb_k(data);
+            return;
+        }
 
         auto cmp = [](auto const &a, auto const &b){ return a->freq > b->freq; };
         std::priority_queue<std::shared_ptr<Node>, std::vector<std::shared_ptr<Node>>, decltype(cmp)> pq(cmp);
@@ -57,12 +74,21 @@ public:
             pq.push(p);
         }
         auto root = pq.top();
-        code_table.clear();
         build_code(root, 0u, 0u);
         build_decode_map();
     }
 
     std::vector<uint8_t> get_meta() const {
+        if (use_exp_golomb_) {
+            std::vector<uint8_t> out;
+            out.push_back(kMagic0);
+            out.push_back(kMagic1);
+            out.push_back(kMetaVersion);
+            out.push_back(kModeExpGolomb);
+            out.push_back(exp_golomb_k_);
+            return out;
+        }
+
         std::vector<uint8_t> out;
         uint32_t count = uint32_t(code_table.size());
         append_uint32(out, count);
@@ -77,6 +103,10 @@ public:
     size_t meta_size() const { return get_meta().size(); }
 
     std::vector<uint8_t> encode(const std::vector<T>& data) const {
+        if (use_exp_golomb_) {
+            return encode_exp_golomb(data);
+        }
+
         std::vector<uint8_t> out;
         uint64_t bitbuf = 0;
         int bits = 0;
@@ -96,7 +126,27 @@ public:
 
     void load_meta(const std::vector<uint8_t>& meta) {
         code_table.clear();
+        decode_map.clear();
+        use_exp_golomb_ = false;
+        exp_golomb_k_ = 0;
+
         size_t pos = 0;
+        bool has_header = false;
+        uint8_t mode = kModeHuffman;
+        if (meta.size() >= 4 && meta[0] == kMagic0 && meta[1] == kMagic1 && meta[2] == kMetaVersion) {
+            has_header = true;
+            mode = meta[3];
+            pos = 4;
+        }
+
+        if (has_header && mode == kModeExpGolomb) {
+            if (meta.size() > pos) {
+                exp_golomb_k_ = meta[pos];
+            }
+            use_exp_golomb_ = true;
+            return;
+        }
+
         uint32_t count = read_uint32(meta, pos);
         for (uint32_t i = 0; i < count; ++i) {
             T sym = read_symbol(meta, pos);
@@ -108,6 +158,10 @@ public:
     }
 
     std::vector<T> decode(const std::vector<uint8_t>& data, size_t orig_size) const {
+        if (use_exp_golomb_) {
+            return decode_exp_golomb(data, orig_size);
+        }
+
         std::vector<T> out;
         out.reserve(orig_size);
     
@@ -147,6 +201,14 @@ private:
     struct Code { uint32_t bits; uint8_t length; };
     std::unordered_map<T, Code> code_table;
     std::unordered_map<uint8_t, std::unordered_map<uint32_t, T>> decode_map;
+    bool use_exp_golomb_ = false;
+    uint8_t exp_golomb_k_ = 0;
+
+    static constexpr uint8_t kMagic0 = 0xE1;
+    static constexpr uint8_t kMagic1 = 0xC1;
+    static constexpr uint8_t kMetaVersion = 1;
+    static constexpr uint8_t kModeHuffman = 0;
+    static constexpr uint8_t kModeExpGolomb = 1;
 
     void build_decode_map() {
         decode_map.clear();
@@ -194,6 +256,139 @@ private:
     static T read_symbol(std::vector<uint8_t> const &i, size_t &p) {
         if constexpr(sizeof(T)==8) return T(read_uint64(i,p));
         T v; std::memcpy(&v, i.data()+p, sizeof(T)); p+=sizeof(T); return v;
+    }
+
+    static uint64_t zigzag_encode(int64_t v) {
+        return (uint64_t(v) << 1) ^ uint64_t(v >> 63);
+    }
+
+    static int64_t zigzag_decode(uint64_t v) {
+        return int64_t((v >> 1) ^ (~(v & 1) + 1));
+    }
+
+    static uint64_t to_unsigned(T v) {
+        if constexpr (std::is_signed<T>::value) {
+            return zigzag_encode(int64_t(v));
+        } else {
+            return uint64_t(v);
+        }
+    }
+
+    static T from_unsigned(uint64_t v) {
+        if constexpr (std::is_signed<T>::value) {
+            return T(zigzag_decode(v));
+        } else {
+            return T(v);
+        }
+    }
+
+    static int bit_length(uint64_t v) {
+        int len = 0;
+        while (v) {
+            ++len;
+            v >>= 1;
+        }
+        return len ? len : 1;
+    }
+
+    static uint8_t select_best_exp_golomb_k(const std::vector<T>& data) {
+        constexpr uint8_t kMaxK = 16;
+        uint64_t best_cost = std::numeric_limits<uint64_t>::max();
+        uint8_t best_k = 0;
+
+        for (uint8_t k = 0; k <= kMaxK; ++k) {
+            uint64_t cost = 0;
+            for (auto v : data) {
+                uint64_t n = to_unsigned(v);
+                uint64_t n1 = (n >> k) + 1;
+                int n1_bits = bit_length(n1);
+                cost += uint64_t(2 * n1_bits - 1 + k);
+            }
+            if (cost < best_cost) {
+                best_cost = cost;
+                best_k = k;
+            }
+        }
+        return best_k;
+    }
+
+    std::vector<uint8_t> encode_exp_golomb(const std::vector<T>& data) const {
+        std::vector<uint8_t> out;
+        uint8_t bitbuf = 0;
+        uint8_t bits = 0;
+
+        auto push_bit = [&](uint8_t b) {
+            bitbuf = (bitbuf << 1) | (b & 1u);
+            ++bits;
+            if (bits == 8) {
+                out.push_back(bitbuf);
+                bitbuf = 0;
+                bits = 0;
+            }
+        };
+
+        for (auto v : data) {
+            uint64_t n = to_unsigned(v);
+            uint64_t n1 = (n >> exp_golomb_k_) + 1;
+            int n1_bits = bit_length(n1);
+            int leading_zeros = n1_bits - 1;
+
+            for (int i = 0; i < leading_zeros; ++i) push_bit(0);
+            for (int i = n1_bits - 1; i >= 0; --i) push_bit((n1 >> i) & 1u);
+
+            for (uint8_t i = 0; i < exp_golomb_k_; ++i) push_bit((n >> i) & 1u);
+        }
+
+        if (bits) {
+            out.push_back(uint8_t(bitbuf << (8 - bits)));
+        }
+        return out;
+    }
+
+    std::vector<T> decode_exp_golomb(const std::vector<uint8_t>& data, size_t orig_size) const {
+        std::vector<T> out;
+        out.reserve(orig_size);
+
+        size_t bit_pos = 0;
+        auto read_bit = [&](int &bit)->bool {
+            size_t byte_idx = bit_pos >> 3;
+            if (byte_idx >= data.size()) return false;
+            int shift = 7 - int(bit_pos & 7);
+            bit = (data[byte_idx] >> shift) & 1;
+            ++bit_pos;
+            return true;
+        };
+
+        while (out.size() < orig_size) {
+            int b = 0;
+            int leading_zeros = 0;
+            while (true) {
+                if (!read_bit(b)) return out;
+                if (b == 0) {
+                    ++leading_zeros;
+                } else {
+                    break;
+                }
+            }
+
+            uint64_t n1 = 1;
+            for (int i = 0; i < leading_zeros; ++i) {
+                if (!read_bit(b)) return out;
+                n1 = (n1 << 1) | uint64_t(b);
+            }
+
+            uint64_t high = (n1 - 1) << exp_golomb_k_;
+            uint64_t low = 0;
+            for (uint8_t i = 0; i < exp_golomb_k_; ++i) {
+                if (!read_bit(b)) return out;
+                low |= (uint64_t(b) << i);
+            }
+
+            uint64_t n = high | low;
+            out.push_back(from_unsigned(n));
+        }
+
+        return out;
     }
 };
 
