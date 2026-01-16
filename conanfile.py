@@ -14,9 +14,6 @@ class Recipe(ConanFile):
         self.requires("zstd/1.5.7")
         self.requires("eigen/3.4.0")
 
-        if self.settings.os == "Macos":
-            self.requires("libomp/15.0.7")
-
     def build_requirements(self):
         self.test_requires("catch2/3.7.1")
 

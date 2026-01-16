@@ -51,7 +51,7 @@ namespace XnYZip {
         std::vector<size_t> indices(voxels.size());
         std::iota(indices.begin(), indices.end(), 0);  // 0, 1, 2, ...
 
-        std::sort(std::execution::par, indices.begin(), indices.end(), [&](size_t i, size_t j) {
+        std::sort(indices.begin(), indices.end(), [&](size_t i, size_t j) {
             return morton_code(voxels[i]) < morton_code(voxels[j]);
         });
 

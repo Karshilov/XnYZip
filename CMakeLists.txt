@@ -14,10 +14,10 @@ include(cmake/project-is-top-level.cmake)
 include(cmake/variables.cmake)
 
 # ---- Declare library ----
-find_package(fmt REQUIRED)
-find_package(Eigen3 REQUIRED)
+find_package(fmt REQUIRED CONFIG)
+find_package(Eigen3 REQUIRED CONFIG)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(ZSTD REQUIRED libzstd)
+pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
 find_package(TBB REQUIRED)
 
 find_package(OpenMP REQUIRED)
@@ -25,12 +25,14 @@ find_package(OpenMP REQUIRED)
 file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
     "${PROJECT_SOURCE_DIR}/source/*.cpp"
 )
+list(FILTER SRC_FILES EXCLUDE REGEX "${PROJECT_SOURCE_DIR}/source/main.cpp$")
 
 add_library(XnYZip_lib ${SRC_FILES})
 
 target_include_directories(XnYZip_lib
     PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/source>"
            ${ZSTD_INCLUDE_DIRS}
+           ${Eigen3_INCLUDE_DIRS}
 )
 
 target_compile_features(XnYZip_lib PUBLIC cxx_std_20)
@@ -41,7 +43,7 @@ target_link_libraries(XnYZip_lib
         Eigen3::Eigen
         TBB::tbb
         OpenMP::OpenMP_CXX
-        ${ZSTD_LIBRARIES}
+        PkgConfig::ZSTD
 )
 
 
