@@ -247,21 +247,19 @@ namespace XnYZip {
                 auto meta5 = encoder3.get_meta();
                 auto compressed5 = encoder3.encode(cnts);
 
+                if (static_cast<double>(meta5.size()) > static_cast<double>(compressed5.size()) * 0.25) {
+                    encoder3.set_use_exp_golomb(true);
+                }
+                encoder3.build(cnts);
+                meta5 = encoder3.get_meta();
+                compressed5 = encoder3.encode(cnts);
+
                 append_value(compressed5.size());
                 append_value(meta5.size());
                 buffer.insert(buffer.end(), meta5.begin(), meta5.end());
                 buffer.insert(buffer.end(), compressed5.begin(), compressed5.end());
 
-                std::cout << "quads size: " << compressed4.size() << ", meta size: " << meta4.size() << std::endl;
-
-                std::cout << "quads length: " << quads.size() << std::endl;
-                std::cout << "repos length: " << repos.size() << std::endl;
-                std::cout << "cnt length: " << cnt.size() << std::endl;
-                std::cout << "blk length: " << blk.size() << std::endl;
-
-                std::cout << "original size of coords: " << points.size() * 3 * sizeof(int) << std::endl;
-                std::cout << "compressed size of coords: " << compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t) << std::endl;
-                std::cout << "compression ratio of coords: " << (double)points.size() * 3 * sizeof(int) / (compressed.size() * sizeof(uint8_t) + meta.size() * sizeof(uint8_t)) << std::endl;
+                std::cout << "cnts size: " << compressed5.size() << ", meta size: " << meta5.size() << std::endl;
 
                 append_value(offset.x());
                 append_value(offset.y());

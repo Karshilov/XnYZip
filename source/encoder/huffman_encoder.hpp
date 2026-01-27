@@ -29,9 +29,10 @@ class HuffmanEncoder {
     };
 
 public:
+
     void build(const std::vector<T>& data) {
-        use_exp_golomb_ = false;
-        exp_golomb_k_ = 0;
+        // use_exp_golomb_ = false;
+        // exp_golomb_k_ = 0;
         code_table.clear();
         decode_map.clear();
 
@@ -49,7 +50,7 @@ public:
         }
         std::cout << "entropy: " << entropy << std::endl;
 
-        if (entropy > 10.0) {
+        if (entropy > 10.0 || use_exp_golomb_) {
             std::cout << "[INFO] using exp golomb" << std::endl;
             use_exp_golomb_ = true;
             exp_golomb_k_ = select_best_exp_golomb_k(data);
@@ -195,6 +196,11 @@ public:
         }
     
         return out;
+    }
+
+    auto set_use_exp_golomb(bool use_exp_golomb) -> bool {
+        use_exp_golomb_ = use_exp_golomb;
+        return use_exp_golomb_;
     }
     
 private:
