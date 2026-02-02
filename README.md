@@ -23,11 +23,11 @@ There should be two files: `usgs.bin` and `vesicles_1_75M.bin`.
 After build XnYZip:
 
 ```sh
-./build/XnYZip <input_file> <quantizer_type (cube/to)> <L2 bound> <-z/-h> <-rle/-normal> <decompression_file_name>
+./build/XnYZip <input_file> <quantizer_type (to/cube)> <L2 bound> <-z/-h> <-rle/-normal> <decompression_file_name>
 ```
 
 + `-z` or `-h` here means using z-order curve or hilbert curve
-+ use `-rle` and `-normal` to control the usage of RLE
++ use `-rle` and `-normal` to control the usage of RLE manually, most of the time you can directly choose `-rle`
 
 input file should be a float32 bin file, arranged like x1, y1, z1, x2, y2, z2 .... The provided bin files are in this format already.
 
