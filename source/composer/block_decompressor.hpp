@@ -52,92 +52,128 @@ namespace XnYZip {
             bool is_hilbert;
             read_value(is_hilbert);
 
+            bool is_direct;
+            read_value(is_direct);
+
             // std::cout << "decompressing: num_points: " << num_points << ", param_size: " << param_size << ", range_x: " << range_x << ", range_y: " << range_y << ", range_z: " << range_z << std::endl;
 
-            size_t blk_size, meta_size;
-            read_value(blk_size);
-            read_value(meta_size);
-            std::vector<uint8_t> meta(p, p + meta_size); p += meta_size;
-            std::vector<uint8_t> data(p, p + blk_size); p += blk_size;
-            auto blk = BitPacker<uint64_t>::unpack({.meta=meta, .data=data});
+            std::vector<Eigen::RowVector3i> coords;
 
-            // std::cout << "decompressing: blk_size: " << blk_size << ", meta_size: " << meta_size << std::endl;
+            if (is_direct) {
+                // Direct SFC decoding
+                size_t blk_size, meta_size;
+                read_value(blk_size);
+                read_value(meta_size);
+                std::vector<uint8_t> meta(p, p + meta_size); p += meta_size;
+                std::vector<uint8_t> data(p, p + blk_size); p += blk_size;
+                auto patches = GolombRiceCoder<uint64_t>::unpack({.meta=meta, .data=data});
 
-            read_value(blk_size);
-            read_value(meta_size);
-            meta.assign(p, p + meta_size); p += meta_size;
-            data.assign(p, p + blk_size); p += blk_size;
-            auto blkcnt = BitPacker<uint64_t>::unpack({.meta=meta, .data=data});
+                read_value(blk_size);
+                read_value(meta_size);
+                meta.assign(p, p + meta_size); p += meta_size;
+                std::vector<uint8_t> encoded(p, p + blk_size); p += blk_size;
+                auto encoder = HuffmanEncoder<uint64_t>();
+                encoder.load_meta(meta);
+                auto deltas = encoder.decode(encoded, num_points);
 
-            // std::cout << "decompressing: cnt_size: " << blk_size << ", meta_size: " << meta_size << std::endl;
+                auto p_for_delta_encoder = PForDeltaEncoder<uint64_t>();
+                PForDeltaData<uint64_t> p_for_delta_data;
+                p_for_delta_data.patches = patches;
+                p_for_delta_data.deltas = deltas;
+                auto sfc_deltas = p_for_delta_encoder.decode(p_for_delta_data);
 
-            read_value(blk_size);
-            read_value(meta_size);
-            meta.assign(p, p + meta_size); p += meta_size;
-            data.assign(p, p + blk_size); p += blk_size;
-            auto patches = GolombRiceCoder<uint64_t>::unpack({.meta=meta, .data=data});
+                // Prefix sum to recover SFC codes
+                std::vector<uint64_t> sfc_codes(num_points);
+                sfc_codes[0] = sfc_deltas[0];
+                for (size_t i = 1; i < num_points; i++) {
+                    sfc_codes[i] = sfc_codes[i - 1] + sfc_deltas[i];
+                }
 
-            read_value(blk_size);
-            read_value(meta_size);
-            meta.assign(p, p + meta_size); p += meta_size;
-            std::vector<uint8_t> encoded(p, p + blk_size); p += blk_size;
-            auto encoder = HuffmanEncoder<uint64_t>();
-            encoder.load_meta(meta);
-            auto deltas = encoder.decode(encoded, num_points);
+                // Decode SFC codes to coordinates
+                int max_range = std::max({range_x, range_y, range_z});
+                int hilbert_bits = 0;
+                { int tmp = max_range; while (tmp > 0) { hilbert_bits++; tmp >>= 1; } }
+                if (hilbert_bits == 0) hilbert_bits = 1;
 
-            auto p_for_delta_encoder = PForDeltaEncoder<uint64_t>();
-            PForDeltaData<uint64_t> p_for_delta_data;
-            p_for_delta_data.patches = patches;
-            p_for_delta_data.deltas = deltas;
-            auto repos = p_for_delta_encoder.decode(p_for_delta_data);
+                coords.resize(num_points);
+                for (size_t i = 0; i < num_points; i++) {
+                    uint64_t morton = is_hilbert ? mve::hilbertToMorton3(sfc_codes[i], hilbert_bits) : sfc_codes[i];
+                    coords[i] = XnYZip::decode_morton_code(morton);
+                }
+            } else {
+                // Block-based decoding
+                size_t blk_size, meta_size;
+                read_value(blk_size);
+                read_value(meta_size);
+                std::vector<uint8_t> meta(p, p + meta_size); p += meta_size;
+                std::vector<uint8_t> data(p, p + blk_size); p += blk_size;
+                auto blk = BitPacker<uint64_t>::unpack({.meta=meta, .data=data});
 
-            // std::cout << "decompressing: repos_size: " << blk_size << ", meta_size: " << meta_size << std::endl;
+                read_value(blk_size);
+                read_value(meta_size);
+                meta.assign(p, p + meta_size); p += meta_size;
+                data.assign(p, p + blk_size); p += blk_size;
+                auto blkcnt = BitPacker<uint64_t>::unpack({.meta=meta, .data=data});
 
-            read_value(blk_size);
-            read_value(meta_size);
-            meta.assign(p, p + meta_size); p += meta_size;
-            data.assign(p, p + blk_size); p += blk_size;
-            auto patches2 = GolombRiceCoder<uint8_t>::unpack({.meta=meta, .data=data});
+                read_value(blk_size);
+                read_value(meta_size);
+                meta.assign(p, p + meta_size); p += meta_size;
+                data.assign(p, p + blk_size); p += blk_size;
+                auto patches = GolombRiceCoder<uint64_t>::unpack({.meta=meta, .data=data});
 
-            read_value(blk_size);
-            read_value(meta_size);
-            meta.assign(p, p + meta_size); p += meta_size;
-            encoded.assign(p, p + blk_size); p += blk_size;
-            auto encoder2 = HuffmanEncoder<uint8_t>();
-            encoder2.load_meta(meta);
-            auto deltas2 = encoder2.decode(encoded, num_points);
+                read_value(blk_size);
+                read_value(meta_size);
+                meta.assign(p, p + meta_size); p += meta_size;
+                std::vector<uint8_t> encoded(p, p + blk_size); p += blk_size;
+                auto encoder = HuffmanEncoder<uint64_t>();
+                encoder.load_meta(meta);
+                auto deltas = encoder.decode(encoded, num_points);
 
-            auto p_for_delta_encoder2 = PForDeltaEncoder<uint8_t>();
-            PForDeltaData<uint8_t> p_for_delta_data2;
-            p_for_delta_data2.patches = patches2;
-            p_for_delta_data2.deltas = deltas2;
-            auto quads = p_for_delta_encoder2.decode(p_for_delta_data2);
+                auto p_for_delta_encoder = PForDeltaEncoder<uint64_t>();
+                PForDeltaData<uint64_t> p_for_delta_data;
+                p_for_delta_data.patches = patches;
+                p_for_delta_data.deltas = deltas;
+                auto repos = p_for_delta_encoder.decode(p_for_delta_data);
 
-            // std::cout << "decompressing: quads_size: " << blk_size << ", meta_size: " << meta_size << std::endl;
+                read_value(blk_size);
+                read_value(meta_size);
+                meta.assign(p, p + meta_size); p += meta_size;
+                data.assign(p, p + blk_size); p += blk_size;
+                auto patches2 = GolombRiceCoder<uint8_t>::unpack({.meta=meta, .data=data});
 
+                read_value(blk_size);
+                read_value(meta_size);
+                meta.assign(p, p + meta_size); p += meta_size;
+                encoded.assign(p, p + blk_size); p += blk_size;
+                auto encoder2 = HuffmanEncoder<uint8_t>();
+                encoder2.load_meta(meta);
+                auto deltas2 = encoder2.decode(encoded, num_points);
 
-            // recover delta
-            for (int i = 1; i < blkcnt.size(); i++) blkcnt[i] += blkcnt[i - 1];
-            for (int i = 1; i < blk.size(); i++) blk[i] += blk[i - 1];
-            
+                auto p_for_delta_encoder2 = PForDeltaEncoder<uint8_t>();
+                PForDeltaData<uint8_t> p_for_delta_data2;
+                p_for_delta_data2.patches = patches2;
+                p_for_delta_data2.deltas = deltas2;
+                auto quads = p_for_delta_encoder2.decode(p_for_delta_data2);
+
+                // recover delta
+                for (int i = 1; i < blkcnt.size(); i++) blkcnt[i] += blkcnt[i - 1];
+                for (int i = 1; i < blk.size(); i++) blk[i] += blk[i - 1];
+
+                LCPMeta lcp_meta;
+                lcp_meta.blkst = blk;
+                lcp_meta.blkcnt = blkcnt;
+                lcp_meta.quads = quads;
+                lcp_meta.repos = repos;
+                lcp_meta.is_hilbert = is_hilbert;
+
+                coords = recover_from_lcp_meta<int>(lcp_meta, 64, 64, 64, range_x, range_y, range_z);
+            }
+
             T ox, oy, oz;
             read_value(ox);
             read_value(oy);
             read_value(oz);
             Eigen::RowVector3<T> offset(ox, oy, oz);
-
-            // std::cout << "decompressing: offset: " << ox << ", " << oy << ", " << oz << std::endl;
-
-            LCPMeta lcp_meta;
-            lcp_meta.blkst = blk;
-            lcp_meta.blkcnt = blkcnt;
-            lcp_meta.quads = quads;
-            lcp_meta.repos = repos;
-            lcp_meta.is_hilbert = is_hilbert;
-
-            auto coords = recover_from_lcp_meta<int>(lcp_meta, 64, 64, 64, range_x, range_y, range_z);
-
-            // std::cout << "decompressing: coords_size: " << coords.size() << std::endl;
 
             std::unique_ptr<BaseQuantizer<T>> quantizer;
             if (quantizer_type_ == QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON) {
@@ -150,11 +186,7 @@ namespace XnYZip {
 
             auto recovered_points = quantizer->recover(coords, params);
 
-            // std::cout << "decompressing: recovered_points_size: " << recovered_points.size() << std::endl;
-
             auto unshifted = XnYZip::unshift_points(recovered_points, offset);
-
-            // std::cout << "decompressing: unshifted_points_size: " << unshifted.size() << std::endl;
 
             return unshifted;
         }
