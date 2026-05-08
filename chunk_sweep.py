@@ -94,8 +94,14 @@ def parse_input_bytes(stdout: str) -> Optional[int]:
 
 
 def parse_psnr(stdout: str) -> Optional[float]:
-    m = re.search(r"p2p\s*psnr\s*:\s*([-\d.]+)", stdout, re.IGNORECASE)
-    return float(m.group(1)) if m else None
+    m = re.search(r"p2p\s*psnr\s*:\s*(-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?|-?nan|-?inf)",
+                  stdout, re.IGNORECASE)
+    if not m:
+        return None
+    try:
+        return float(m.group(1))
+    except ValueError:
+        return None
 
 
 def parse_compression_ms(stdout: str) -> Optional[float]:

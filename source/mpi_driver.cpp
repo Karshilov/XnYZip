@@ -41,13 +41,19 @@ struct Args {
     std::string mode = "-normal";   // "-normal" | "-rle"
     float bound = 1e-3f;
     int direct_threshold = 1024;
+    bool shared_codebook = false;   // --shared-codebook: warmup pass on rank 0,
+                                    // broadcast Huffman codebooks, every chunk
+                                    // emits identical codebook bytes
+    bool verify_roundtrip = false;  // --verify-roundtrip: decompress each chunk
+                                    // immediately after compressing and verify
+                                    // every point is within bound. Aborts if not.
 };
 
 void usage(const char* prog) {
     std::fprintf(stderr,
         "Usage: %s --input PATH --output-dir DIR --block-size BYTES --bound F "
         "[--quantizer cube|to] [--curve -z|-h] [--mode -normal|-rle] "
-        "[--direct-threshold N]\n", prog);
+        "[--direct-threshold N] [--shared-codebook]\n", prog);
 }
 
 Args parse_args(int argc, char* argv[]) {
@@ -68,6 +74,8 @@ Args parse_args(int argc, char* argv[]) {
         else if (k == "--curve") a.curve = need("--curve");
         else if (k == "--mode") a.mode = need("--mode");
         else if (k == "--direct-threshold") a.direct_threshold = std::stoi(need("--direct-threshold"));
+        else if (k == "--shared-codebook") a.shared_codebook = true;
+        else if (k == "--verify-roundtrip") a.verify_roundtrip = true;
         else if (k == "-h" || k == "--help") { usage(argv[0]); std::exit(0); }
         else throw std::runtime_error("unknown arg: " + k);
     }
@@ -77,6 +85,9 @@ Args parse_args(int argc, char* argv[]) {
     }
     if (a.block_size % POINT_BYTES != 0) {
         throw std::runtime_error("block size must be a multiple of 12 bytes (3*float32)");
+    }
+    if (a.shared_codebook && a.mode == "-rle") {
+        throw std::runtime_error("--shared-codebook is not implemented for -rle mode");
     }
     return a;
 }
@@ -93,17 +104,23 @@ std::vector<Eigen::RowVector3f> bytes_to_points(const std::vector<char>& buf) {
 }
 
 std::vector<std::uint8_t> compress_block(std::vector<Eigen::RowVector3f>& pts,
-                                         const Args& a) {
+                                         const Args& a,
+                                         const XnYZip::BlockEncodingProfile* profile) {
     using namespace XnYZip;
     bool is_hilbert = (a.curve == "-h");
     bool use_rle = (a.mode == "-rle");
     QUANTIZER_TYPE qt = (a.quantizer == "cube") ? QUANTIZER_TYPE::CUBE
                                                 : QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON;
     if (use_rle) {
+        // shared-codebook is unsupported for RLE; the parser already rejects
+        // this combination, so profile must be null here.
         BlockCompressorRLE<float> c(qt, a.bound, false, a.direct_threshold);
         return c.compress(pts, is_hilbert);
     }
     BlockCompressor<float> c(qt, a.bound, false, a.direct_threshold);
+    if (profile != nullptr) {
+        return c.compress_with_profile(pts, is_hilbert, *profile);
+    }
     return c.compress(pts, is_hilbert);
 }
 
@@ -174,6 +191,65 @@ int main(int argc, char* argv[]) {
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
+    // ---- shared-codebook warmup: rank 0 fits codebooks on block 0 and ----
+    // ---- broadcasts the serialized profile to all ranks                 ----
+    XnYZip::BlockEncodingProfile shared_profile;
+    double t_warmup = 0.0;
+    if (args.shared_codebook) {
+        MPI_Barrier(MPI_COMM_WORLD);
+        double t_warmup_start = MPI_Wtime();
+
+        std::vector<std::uint8_t> profile_blob;
+        std::uint64_t warmup_offset = 0;
+        std::uint64_t warmup_nbytes = std::min<std::uint64_t>(args.block_size, aligned_size);
+
+        if (rank == 0) {
+            std::vector<char> warmup_in(warmup_nbytes);
+            MPI_File_read_at(fh, static_cast<MPI_Offset>(warmup_offset), warmup_in.data(),
+                             static_cast<int>(warmup_nbytes), MPI_BYTE, MPI_STATUS_IGNORE);
+            auto warmup_pts = bytes_to_points(warmup_in);
+            try {
+                XnYZip::QUANTIZER_TYPE qt =
+                    (args.quantizer == "cube") ? XnYZip::QUANTIZER_TYPE::CUBE
+                                               : XnYZip::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON;
+                bool is_hilbert = (args.curve == "-h");
+                XnYZip::BlockCompressor<float> c(qt, args.bound, false, args.direct_threshold);
+                auto [warmup_bytes, prof] = c.fit_profile(warmup_pts, is_hilbert);
+                shared_profile = std::move(prof);
+            } catch (const std::exception& e) {
+                std::fprintf(stderr, "rank 0 warmup: %s\n", e.what());
+                MPI_Abort(MPI_COMM_WORLD, 3);
+            }
+            profile_blob = XnYZip::serialize_profile(shared_profile);
+            std::printf("[shared-codebook] rank 0 fit profile: blob=%zu bytes "
+                        "(repos_meta=%zu, quads_meta=%zu)\n",
+                        profile_blob.size(),
+                        shared_profile.repos_huff_meta.size(),
+                        shared_profile.quads_huff_meta.size());
+        }
+
+        // Broadcast blob size, then bytes.
+        std::uint64_t blob_size = profile_blob.size();
+        MPI_Bcast(&blob_size, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+        if (rank != 0) profile_blob.resize(blob_size);
+        MPI_Bcast(profile_blob.data(), static_cast<int>(blob_size), MPI_BYTE, 0, MPI_COMM_WORLD);
+        if (rank != 0) shared_profile = XnYZip::deserialize_profile(profile_blob);
+
+        if (!shared_profile.valid()) {
+            if (rank == 0) std::fprintf(stderr, "[shared-codebook] invalid profile after broadcast\n");
+            MPI_Abort(MPI_COMM_WORLD, 4);
+        }
+
+        MPI_Barrier(MPI_COMM_WORLD);
+        t_warmup = MPI_Wtime() - t_warmup_start;
+        if (rank == 0) {
+            std::printf("[shared-codebook] warmup + broadcast: %.4f s\n", t_warmup);
+        }
+    }
+
+    const XnYZip::BlockEncodingProfile* profile_ptr =
+        args.shared_codebook ? &shared_profile : nullptr;
+
     // ---- per-rank accumulators ----
     double t_read = 0.0, t_comp = 0.0, t_write = 0.0;
     std::uint64_t local_input_bytes = 0;
@@ -196,15 +272,75 @@ int main(int argc, char* argv[]) {
         double a_decode = MPI_Wtime();
 
         auto pts = bytes_to_points(in);
+        // Keep an unmodified copy for roundtrip verification, since compress()
+        // reorders the input vector in-place via the SFC permutation.
+        std::vector<Eigen::RowVector3f> original_pts;
+        if (args.verify_roundtrip) original_pts = pts;
         std::vector<std::uint8_t> compressed;
         try {
-            compressed = compress_block(pts, args);
+            compressed = compress_block(pts, args, profile_ptr);
         } catch (const std::exception& e) {
             std::fprintf(stderr, "rank %d block %llu: compress failed: %s\n",
                          rank, (unsigned long long)b, e.what());
             MPI_Abort(MPI_COMM_WORLD, 2);
         }
         double a_comp = MPI_Wtime();
+
+        if (args.verify_roundtrip) {
+            // RLE mode decompression returns the deduplicated unique points
+            // only (not the original points), so the per-point comparison
+            // below would be invalid. Skip with a one-time notice.
+            if (args.mode == "-rle") {
+                static bool warned = false;
+                if (!warned && rank == 0) {
+                    std::printf("[verify] -rle mode: per-point roundtrip check skipped "
+                                "(RLE deduplicates; full-point recovery requires the "
+                                "external recovery pipeline). Compression itself is "
+                                "self-checked by the encoder.\n");
+                    warned = true;
+                }
+                goto skip_verify;
+            }
+            try {
+                XnYZip::QUANTIZER_TYPE qt =
+                    (args.quantizer == "cube") ? XnYZip::QUANTIZER_TYPE::CUBE
+                                               : XnYZip::QUANTIZER_TYPE::TRUNCATED_OCTAHEDRON;
+                XnYZip::BlockDecompressor<float> d(qt, args.bound);
+                auto recovered = d.decompress(compressed);
+                if (recovered.size() != original_pts.size()) {
+                    std::fprintf(stderr,
+                        "rank %d block %llu: roundtrip size mismatch (orig=%zu rec=%zu)\n",
+                        rank, (unsigned long long)b, original_pts.size(), recovered.size());
+                    MPI_Abort(MPI_COMM_WORLD, 5);
+                }
+                // The compressor sorts points along the SFC, so original_pts
+                // and recovered are in the SAME order (compress() permutes
+                // original_pts in place; compress_with_profile() does the same).
+                // We can therefore compare elementwise on the post-compress
+                // permutation, which is `pts` (modified in place above).
+                float max_err = 0.0f;
+                std::uint64_t n_overflow = 0;
+                for (std::size_t i = 0; i < pts.size(); ++i) {
+                    float err = (pts[i] - recovered[i]).norm();
+                    if (err > max_err) max_err = err;
+                    if (err > args.bound) ++n_overflow;
+                }
+                if (n_overflow > 0) {
+                    std::fprintf(stderr,
+                        "rank %d block %llu: %llu points exceed bound (max_err=%.6f bound=%.6f)\n",
+                        rank, (unsigned long long)b, (unsigned long long)n_overflow,
+                        max_err, args.bound);
+                    MPI_Abort(MPI_COMM_WORLD, 6);
+                }
+                std::printf("[verify] rank %d block %llu: %zu points OK (max_err=%.6e <= %.6e)\n",
+                            rank, (unsigned long long)b, recovered.size(), max_err, args.bound);
+            } catch (const std::exception& e) {
+                std::fprintf(stderr, "rank %d block %llu: roundtrip exception: %s\n",
+                             rank, (unsigned long long)b, e.what());
+                MPI_Abort(MPI_COMM_WORLD, 7);
+            }
+            skip_verify:;
+        }
 
         std::uint64_t out_offset = static_cast<std::uint64_t>(part.tellp());
         part.write(reinterpret_cast<const char*>(compressed.data()),
@@ -282,6 +418,8 @@ int main(int argc, char* argv[]) {
                 << "  \"nranks\": " << nranks << ",\n"
                 << "  \"num_blocks\": " << g_blocks << ",\n"
                 << "  \"block_size\": " << args.block_size << ",\n"
+                << "  \"shared_codebook\": " << (args.shared_codebook ? "true" : "false") << ",\n"
+                << "  \"warmup_s\": " << t_warmup << ",\n"
                 << "  \"input_bytes\": " << g_in << ",\n"
                 << "  \"compressed_bytes\": " << g_out << ",\n"
                 << "  \"ratio\": " << ratio << ",\n"

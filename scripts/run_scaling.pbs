@@ -1,0 +1,101 @@
+#!/bin/bash -l
+#PBS -A SDR
+#PBS -l walltime=02:00:00
+#PBS -N xnyzip-scaling
+#PBS -j oe
+#PBS -m bae
+#PBS -M youyuan.liu@temple.edu
+
+# Strong-scaling job for XnYZip distributed compression on Bebop (PBS Pro).
+# Run one job per node count; inside the job, sweep over block sizes
+# sequentially (matches the user's existing "one PBS job, multiple workloads"
+# pattern used by throughput-eval.pbs).
+#
+# `select` is set at submit time so the same script handles 1..16 nodes:
+#   qsub -l select=4:ncpus=36:mpiprocs=36 \
+#        -v INPUT=/lcrc/.../hacc.f32,OUTROOT=runs/hacc_n4,BOUND=0.266,MODE=-rle \
+#        scripts/run_scaling.pbs
+#
+# Required (qsub -v):
+#   INPUT     absolute path to the input .f32 / .bin (xyz interleaved float32)
+#   OUTROOT   output root, e.g. runs/hacc_n4
+#   BOUND     absolute L2 error bound (NOT a scale; pre-multiply by diagonal)
+# Optional:
+#   BLOCKS_MIB    block sizes to sweep (default "64 128 256")
+#   QUANTIZER     cube | to                       (default to)
+#   CURVE         -z | -h                         (default -z)
+#   MODE          -normal | -rle                  (default -rle for HACC)
+#   DIRECT_THRESH 0 forces block mode             (default 0; do NOT change)
+#   XNYZIP_MPI    binary path                     (default build/XnYZip_mpi)
+
+set -euo pipefail
+
+echo "========================================================"
+echo "Job started on $(hostname) at $(date)"
+echo "Job ID: ${PBS_JOBID:-na}"
+echo "Working directory: ${PBS_O_WORKDIR:-$(pwd)}"
+echo "========================================================"
+
+cd "${PBS_O_WORKDIR:-$(pwd)}"
+
+# --- Environment Setup ---
+echo "Loading required modules..."
+module load oneapi/tbb zlib gcc/13.2.0-xk53apo
+# Confirm the exact MPI module on Bebop with `module avail mpi` once. If the
+# default build below fails, swap `mpich` for `openmpi` or `intel-mpi`.
+module load mpich
+echo "Modules loaded:"
+module list
+echo
+
+# --- Validate inputs ---
+: "${INPUT:?INPUT must be set via qsub -v INPUT=...}"
+: "${OUTROOT:?OUTROOT must be set via qsub -v OUTROOT=...}"
+: "${BOUND:?BOUND (absolute) must be set via qsub -v BOUND=...}"
+: "${BLOCKS_MIB:=64 128 256}"
+: "${QUANTIZER:=to}"
+: "${CURVE:=-z}"
+: "${MODE:=-rle}"
+: "${DIRECT_THRESH:=0}"
+: "${XNYZIP_MPI:=$PBS_O_WORKDIR/build/XnYZip_mpi}"
+
+LAUNCH=$(command -v mpiexec || command -v mpirun)
+echo "MPI launcher: $LAUNCH"
+echo "Binary:       $XNYZIP_MPI"
+echo "Input:        $INPUT"
+echo "Outroot:      $OUTROOT"
+echo "Block sizes:  $BLOCKS_MIB MiB"
+echo "Bound:        $BOUND  Quantizer:$QUANTIZER  Curve:$CURVE  Mode:$MODE"
+echo
+
+mkdir -p "$OUTROOT"
+
+# --- Run one compression per block size ---
+for BLOCK_MIB in $BLOCKS_MIB; do
+    BLOCK_BYTES=$((BLOCK_MIB * 1024 * 1024))
+    OUTDIR="$OUTROOT/blk${BLOCK_MIB}M"
+    mkdir -p "$OUTDIR"
+
+    echo "--------------------------------------------------------"
+    echo ">>> block_size=${BLOCK_MIB} MiB -> $OUTDIR"
+    echo "--------------------------------------------------------"
+
+    "$LAUNCH" "$XNYZIP_MPI" \
+        --input "$INPUT" \
+        --output-dir "$OUTDIR" \
+        --block-size "$BLOCK_BYTES" \
+        --bound "$BOUND" \
+        --quantizer "$QUANTIZER" \
+        --curve "$CURVE" \
+        --mode "$MODE" \
+        --direct-threshold "$DIRECT_THRESH" \
+        2>&1 | tee "$OUTDIR/stdout.log"
+
+    echo "==== summary.json (blk${BLOCK_MIB}M) ===="
+    cat "$OUTDIR/summary.json" || true
+    echo
+done
+
+echo "========================================================"
+echo "Job finished at $(date)"
+echo "========================================================"

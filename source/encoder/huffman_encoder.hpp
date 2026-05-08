@@ -43,19 +43,62 @@ public:
         std::unordered_map<T, uint64_t> freq;
         for (auto v : data) freq[v]++;
 
+        // Preserve original exp-golomb fallback: if symbol entropy is high
+        // (>10 bits) or caller requested exp-golomb, switch modes.
         double entropy = 0.0;
         for (auto& kv : freq) {
             double p = double(kv.second) / data.size();
             entropy -= p * std::log2(p);
         }
-        std::cout << "entropy: " << entropy << std::endl;
-
         if (entropy > 10.0 || use_exp_golomb_) {
             std::cout << "[INFO] using exp golomb" << std::endl;
             use_exp_golomb_ = true;
             exp_golomb_k_ = select_best_exp_golomb_k(data);
             return;
         }
+
+        build_from_freq(freq, data.size());
+    }
+
+    // Build Huffman tree from data, then synthetically inject all symbols in
+    // [0, alphabet_max] with frequency 1 if missing. Used for shared-codebook
+    // mode: the resulting codebook covers any symbol that subsequent chunks
+    // might emit, at the cost of slightly suboptimal codes for the warmup chunk.
+    // The cost is negligible because the unused symbols get long codes that
+    // are never invoked.
+    void build_complete(const std::vector<T>& data, T alphabet_max) {
+        code_table.clear();
+        decode_map.clear();
+        use_exp_golomb_ = false;
+        exp_golomb_k_ = 0;
+
+        std::unordered_map<T, uint64_t> freq;
+        for (auto v : data) freq[v]++;
+        for (T s = 0; s <= alphabet_max; ++s) {
+            if (freq.find(s) == freq.end()) {
+                freq[s] = 1;
+            }
+            if (s == std::numeric_limits<T>::max()) break; // overflow guard
+        }
+        build_from_freq(freq, data.size());
+    }
+
+private:
+    // Helper: build Huffman tree from a precomputed frequency map.
+    // Note: exp-golomb fallback is deliberately NOT triggered here, because
+    // it depends on the raw data (for selecting k). Callers that want
+    // exp-golomb must invoke build() directly with the raw data.
+    void build_from_freq(const std::unordered_map<T, uint64_t>& freq, size_t total) {
+        if (freq.empty()) return;
+
+        double entropy = 0.0;
+        if (total > 0) {
+            for (auto& kv : freq) {
+                double p = double(kv.second) / total;
+                if (p > 0) entropy -= p * std::log2(p);
+            }
+        }
+        std::cout << "entropy: " << entropy << std::endl;
 
         auto cmp = [](auto const &a, auto const &b){ return a->freq > b->freq; };
         std::priority_queue<std::shared_ptr<Node>, std::vector<std::shared_ptr<Node>>, decltype(cmp)> pq(cmp);
@@ -79,6 +122,7 @@ public:
         build_decode_map();
     }
 
+public:
     std::vector<uint8_t> get_meta() const {
         if (use_exp_golomb_) {
             std::vector<uint8_t> out;
