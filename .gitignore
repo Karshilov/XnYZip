@@ -16,3 +16,5 @@ conan_cache_*.tgz
 data/
 *.f32
 .cache/
+*.xlsx
+*.log

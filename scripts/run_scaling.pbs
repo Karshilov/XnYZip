@@ -80,7 +80,12 @@ for BLOCK_MIB in $BLOCKS_MIB; do
     echo ">>> block_size=${BLOCK_MIB} MiB -> $OUTDIR"
     echo "--------------------------------------------------------"
 
-    "$LAUNCH" "$XNYZIP_MPI" \
+    # `stdbuf -oL` forces line-buffered stdout from the launcher process so
+    # progress lines reach the PBS log (and the `tee`-d stdout.log) in real
+    # time rather than being held until the job exits. The C++ binary ALSO
+    # uses setvbuf(_IOLBF) internally, but we apply the wrapper here too
+    # in case of intermediate buffers along the way.
+    stdbuf -oL "$LAUNCH" "$XNYZIP_MPI" \
         --input "$INPUT" \
         --output-dir "$OUTDIR" \
         --block-size "$BLOCK_BYTES" \

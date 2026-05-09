@@ -127,6 +127,11 @@ std::vector<std::uint8_t> compress_block(std::vector<Eigen::RowVector3f>& pts,
 } // namespace
 
 int main(int argc, char* argv[]) {
+    // Force line-buffered stdout/stderr so progress lines appear in PBS log
+    // immediately rather than being held until the job exits.
+    std::setvbuf(stdout, nullptr, _IOLBF, 0);
+    std::setvbuf(stderr, nullptr, _IOLBF, 0);
+
     MPI_Init(&argc, &argv);
     int rank = 0, nranks = 1;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -256,9 +261,24 @@ int main(int argc, char* argv[]) {
     std::uint64_t local_compressed_bytes = 0;
     std::uint64_t local_blocks = 0;
 
+    // How many blocks does THIS rank own (used for progress display)?
+    std::uint64_t my_total_blocks = 0;
+    for (std::uint64_t b = static_cast<std::uint64_t>(rank); b < num_blocks;
+         b += static_cast<std::uint64_t>(nranks)) {
+        my_total_blocks++;
+    }
+
     MPI_Barrier(MPI_COMM_WORLD);
     double t0 = MPI_Wtime();
 
+    if (rank == 0) {
+        std::printf("[progress] starting compression: %llu blocks across %d ranks "
+                    "(rank 0 will process %llu blocks)\n",
+                    (unsigned long long)num_blocks, nranks,
+                    (unsigned long long)my_total_blocks);
+    }
+
+    std::uint64_t my_block_idx = 0;
     for (std::uint64_t b = static_cast<std::uint64_t>(rank); b < num_blocks;
          b += static_cast<std::uint64_t>(nranks)) {
         std::uint64_t offset = b * args.block_size;
@@ -362,6 +382,26 @@ int main(int argc, char* argv[]) {
         local_input_bytes      += nbytes;
         local_compressed_bytes += compressed.size();
         local_blocks++;
+
+        // Per-block progress: every rank prints one line per finished block.
+        // Format chosen so it's grep-friendly (`grep '\[progress\]'`).
+        my_block_idx++;
+        double dt_read  = a_decode - a_read;
+        double dt_comp  = a_comp   - a_decode;
+        double dt_write = a_write  - a_comp;
+        double elapsed  = a_write  - t0;
+        double chunk_ratio = (compressed.size() > 0)
+            ? double(nbytes) / double(compressed.size()) : 0.0;
+        std::printf("[progress] rank %d  block %llu  (mine %llu/%llu)  "
+                    "read=%.2fs comp=%.2fs write=%.3fs  in=%.1fMB out=%.2fMB ratio=%.1f  "
+                    "rank_elapsed=%.1fs\n",
+                    rank,
+                    (unsigned long long)b,
+                    (unsigned long long)my_block_idx,
+                    (unsigned long long)my_total_blocks,
+                    dt_read, dt_comp, dt_write,
+                    nbytes / 1e6, compressed.size() / 1e6, chunk_ratio,
+                    elapsed);
     }
 
     part.flush();
