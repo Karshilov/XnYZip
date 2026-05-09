@@ -39,18 +39,38 @@ EXTRA_QSUB=()
 PBS_SCRIPT="$(cd "$(dirname "$0")" && pwd)/run_scaling.pbs"
 mkdir -p "$RUN_ROOT"
 
+# Submit jobs in a DEPENDENCY CHAIN: N=2 starts only after N=1 finishes,
+# N=4 only after N=2, etc. This guarantees that at any time only ONE
+# job is running, so we never violate Bebop's per-user/per-project node
+# limits (40 / 60 nodes) regardless of how many node-counts we sweep.
+PREV_JOBID=""
 for N in $NODES; do
     OUTROOT="$RUN_ROOT/${BASE}_n${N}"
     mkdir -p "$OUTROOT"
     SELECT="select=${N}:ncpus=${PPN}:mpiprocs=${PPN}:mem=${MEM}"
-    echo "==> submitting N=$N  ($((N * PPN)) ranks)  -> $OUTROOT"
-    qsub \
+
+    DEPEND_ARGS=()
+    if [[ -n "$PREV_JOBID" ]]; then
+        DEPEND_ARGS+=(-W "depend=afterany:$PREV_JOBID")
+        echo "==> submitting N=$N  ($((N * PPN)) ranks)  -> $OUTROOT  (waits for $PREV_JOBID)"
+    else
+        echo "==> submitting N=$N  ($((N * PPN)) ranks)  -> $OUTROOT  (head of chain)"
+    fi
+
+    JOBID=$(qsub \
         "${EXTRA_QSUB[@]}" \
+        "${DEPEND_ARGS[@]}" \
         -l "$SELECT" \
         -v "INPUT=$INPUT,OUTROOT=$OUTROOT,BLOCKS_MIB=$BLOCKS_MIB,BOUND=$BOUND,QUANTIZER=$QUANTIZER,CURVE=$CURVE,MODE=$MODE,DIRECT_THRESH=$DIRECT_THRESH,XNYZIP_MPI=$XNYZIP_MPI" \
-        "$PBS_SCRIPT"
+        "$PBS_SCRIPT")
+    echo "    jobid=$JOBID"
+    PREV_JOBID="$JOBID"
 done
 
+echo
+echo "Jobs are dependency-chained. Watch progress with:"
+echo "  qstat -u \$USER -wT"
+echo "  tail -f $RUN_ROOT/${BASE}_n*/blk*/stdout.log | grep '\\[progress\\]'"
 echo
 echo "After all jobs finish, aggregate with:"
 echo "  python scripts/parse_scaling_results.py $RUN_ROOT --base $BASE \\"
