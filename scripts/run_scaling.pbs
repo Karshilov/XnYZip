@@ -78,6 +78,8 @@ mkdir -p "$OUTROOT"
 # --- Run one compression per block size ---
 for BLOCK_MIB in $BLOCKS_MIB; do
     BLOCK_BYTES=$((BLOCK_MIB * 1024 * 1024))
+    # Align to 12-byte boundary (one float32 xyz point); binary requires this.
+    BLOCK_BYTES=$((BLOCK_BYTES - BLOCK_BYTES % 12))
     OUTDIR="$OUTROOT/blk${BLOCK_MIB}M"
     mkdir -p "$OUTDIR"
 
