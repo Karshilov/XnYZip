@@ -43,7 +43,7 @@ echo "Loading required modules..."
 module load oneapi/tbb zlib gcc/13.2.0-xk53apo
 # Confirm the exact MPI module on Bebop with `module avail mpi` once. If the
 # default build below fails, swap `mpich` for `openmpi` or `intel-mpi`.
-module load mpich
+module load openmpi
 echo "Modules loaded:"
 module list
 echo
