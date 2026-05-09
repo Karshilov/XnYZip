@@ -47,7 +47,7 @@ PREV_JOBID=""
 for N in $NODES; do
     OUTROOT="$RUN_ROOT/${BASE}_n${N}"
     mkdir -p "$OUTROOT"
-    SELECT="select=${N}:ncpus=${PPN}:mpiprocs=${PPN}:mem=${MEM}"
+    SELECT="select=${N}:ncpus=${PPN}:mpiprocs=${PPN}"
 
     DEPEND_ARGS=()
     if [[ -n "$PREV_JOBID" ]]; then
