@@ -1,0 +1,80 @@
+#!/bin/bash -l
+#PBS -A SDR
+#PBS -l walltime=00:30:00
+#PBS -N xnyzip-monolithic
+#PBS -j oe
+#PBS -m bae
+#PBS -M youyuan.liu@temple.edu
+
+# Single-machine monolithic compression of one input file. Used to obtain the
+# "ground truth" full-file ratio that distributed runs are compared against.
+#
+# Required (qsub -v):
+#   INPUT     absolute path to input .bin
+#   OUTROOT   output dir for the report file
+#   BOUND     absolute L2 bound
+# Optional:
+#   QUANTIZER cube|to            (default to)
+#   CURVE     -z|-h              (default -z)
+#   MODE      -normal|-rle       (default -rle)
+#   XNYZIP    binary path        (default build/XnYZip)
+
+set -euo pipefail
+
+echo "=== monolithic baseline at $(date) on $(hostname) ==="
+cd "${PBS_O_WORKDIR:-$(pwd)}"
+
+module load oneapi/tbb zlib gcc/13.2.0-xk53apo openmpi
+module list
+
+: "${INPUT:?}"
+: "${OUTROOT:?}"
+: "${BOUND:?}"
+: "${QUANTIZER:=to}"
+: "${CURVE:=-z}"
+: "${MODE:=-rle}"
+: "${XNYZIP:=$PBS_O_WORKDIR/build/XnYZip}"
+
+mkdir -p "$OUTROOT"
+LOG="$OUTROOT/monolithic.log"
+
+echo "input=$INPUT"
+echo "bound=$BOUND mode=$MODE"
+ls -la "$INPUT"
+free -g
+
+# direct_threshold=0 forces block mode (avoids the direct-mode bug)
+# /tmp/_decomp.f32 throwaway decomp output
+stdbuf -oL "$XNYZIP" "$INPUT" "$QUANTIZER" "$BOUND" "$CURVE" "$MODE" \
+    /tmp/_decomp_$$.f32 0 \
+    2>&1 | tee "$LOG"
+
+# Extract ratio + a few key stats into a small JSON-ish summary
+awk '
+    /^compression ratio:/ {ratio = $3}
+    /Unique points:/      {uniq = $3}
+    /Duplicate ratio:/    {dup = $3}
+    /^p2p psnr:/          {psnr = $3}
+    /Encoding mode:/      {mode = $3}
+    /^Max L2 error:/      {maxerr = $4}
+    END {
+        print "{"
+        print "  \"input\": \"'"$INPUT"'\","
+        print "  \"bound\": " "'"$BOUND"'" ","
+        print "  \"compress_mode\": \"'"$MODE"'\","
+        print "  \"encoding\": \"" mode "\","
+        print "  \"ratio\": " ratio ","
+        print "  \"unique_cells\": " (uniq ? uniq : "null") ","
+        print "  \"duplicate_ratio\": " (dup ? dup : "null") ","
+        print "  \"max_l2_error\": " (maxerr ? maxerr : "null") ","
+        print "  \"psnr\": " (psnr ? psnr : "null")
+        print "}"
+    }
+' "$LOG" > "$OUTROOT/monolithic_summary.json"
+
+echo
+echo "==== monolithic_summary.json ===="
+cat "$OUTROOT/monolithic_summary.json"
+
+rm -f /tmp/_decomp_$$.f32
+echo "=== done at $(date) ==="
