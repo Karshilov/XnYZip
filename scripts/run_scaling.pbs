@@ -60,7 +60,12 @@ echo
 : "${XNYZIP_MPI:=$PBS_O_WORKDIR/build/XnYZip_mpi}"
 
 LAUNCH=$(command -v mpiexec || command -v mpirun)
+# Compute MPI rank count from PBS_NODEFILE. OpenMPI 5 doesn't auto-detect
+# from PBS env; always pass explicit -n.
+NPROCS=$(wc -l < "${PBS_NODEFILE:-/dev/null}" 2>/dev/null || echo 1)
+[[ "$NPROCS" -lt 1 ]] && NPROCS=1
 echo "MPI launcher: $LAUNCH"
+echo "MPI ranks:    $NPROCS  (from PBS_NODEFILE)"
 echo "Binary:       $XNYZIP_MPI"
 echo "Input:        $INPUT"
 echo "Outroot:      $OUTROOT"
@@ -80,12 +85,11 @@ for BLOCK_MIB in $BLOCKS_MIB; do
     echo ">>> block_size=${BLOCK_MIB} MiB -> $OUTDIR"
     echo "--------------------------------------------------------"
 
-    # `stdbuf -oL` forces line-buffered stdout from the launcher process so
-    # progress lines reach the PBS log (and the `tee`-d stdout.log) in real
-    # time rather than being held until the job exits. The C++ binary ALSO
-    # uses setvbuf(_IOLBF) internally, but we apply the wrapper here too
-    # in case of intermediate buffers along the way.
-    stdbuf -oL "$LAUNCH" "$XNYZIP_MPI" \
+    # `stdbuf -oL` forces line-buffered stdout. The `--` after launcher args
+    # tells mpiexec to stop parsing flags so our own `--input` etc. reach
+    # the binary. Explicit `-n` because OpenMPI 5 doesn't always auto-detect
+    # ranks from $PBS_NODEFILE.
+    stdbuf -oL "$LAUNCH" -n "$NPROCS" -- "$XNYZIP_MPI" \
         --input "$INPUT" \
         --output-dir "$OUTDIR" \
         --block-size "$BLOCK_BYTES" \
