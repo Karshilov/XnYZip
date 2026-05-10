@@ -19,9 +19,11 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -163,37 +165,50 @@ struct CellHasher {
     }
 };
 
-// Compute owner rank for a cell. Three strategies:
+// Compute owner rank for a cell. Four strategies:
+//
+//   "samplesort"    DEFAULT. Each rank samples K Morton codes from its local
+//                    cells; samples are MPI_Allgather'd, sorted, and (N-1)
+//                    splitters are picked at uniform sample indices. Each
+//                    rank's owned range is the inter-splitter interval. This
+//                    gives near-perfect load balance regardless of cell
+//                    distribution AND preserves SFC locality within rank.
+//                    Avoids the ~10GB-per-rank send/recv blow-up that naive
+//                    Morton-range partition causes on skewed/clustered data.
 //
 //   "morton-range"  Partition the actual observed Morton-code range [min, max]
-//                    into N equal sub-ranges. Preserves SFC locality within
-//                    rank (good encoder efficiency) AND adapts to skewed bboxes
-//                    (good load balance, as long as cell density is roughly
-//                    uniform along the SFC). DEFAULT.
+//                    into N equal sub-ranges. Cheap (no sample collection)
+//                    but assumes Morton density is uniform; on clustered
+//                    inputs (HACC particles in a corner of the bbox), one rank
+//                    gets all the cells and MPI_Alltoallv displacements
+//                    overflow int. Kept for ablation.
 //
-//   "hash"          Uniform balance, no SFC locality. Use when default has bad
-//                    balance for some reason (e.g. extremely clustered data).
-//                    Will significantly hurt encoded ratio.
+//   "hash"          Uniform balance, no SFC locality. Use as a fallback when
+//                    samplesort itself misbehaves. Significantly hurts
+//                    encoded ratio.
 //
-//   "morton"        Naive Morton-prefix using the global axis_bits. Worst of
-//                    both worlds for skewed bboxes; kept for ablation.
+//   "morton"        Naive fixed-bit Morton-prefix. Bad on every dataset.
+//                    Kept for ablation only.
 //
-// Selectable via env var XNYZIP_MR_PARTITION = "morton-range" | "hash" | "morton".
-enum class PartitionMode { MORTON_RANGE, HASH, MORTON };
+// Selectable via env var XNYZIP_MR_PARTITION = "samplesort" | "morton-range" |
+// "hash" | "morton". Default is samplesort.
+enum class PartitionMode { SAMPLESORT, MORTON_RANGE, HASH, MORTON };
 
 inline PartitionMode pick_partition_mode() {
     if (const char* e = std::getenv("XNYZIP_MR_PARTITION")) {
         std::string s = e;
+        if (s == "samplesort")   return PartitionMode::SAMPLESORT;
         if (s == "morton-range") return PartitionMode::MORTON_RANGE;
         if (s == "hash")         return PartitionMode::HASH;
         if (s == "morton")       return PartitionMode::MORTON;
     }
-    return PartitionMode::MORTON_RANGE;
+    return PartitionMode::SAMPLESORT;
 }
 
 inline int owner_rank_for_cell(const Eigen::RowVector3i& cell, int nranks,
                                int morton_bits,
                                std::uint64_t morton_min, std::uint64_t morton_max,
+                               const std::vector<std::uint64_t>& splitters,
                                PartitionMode mode) {
     if (mode == PartitionMode::HASH) {
         std::uint64_t h = static_cast<std::uint64_t>(static_cast<std::uint32_t>(cell[0])) * 73856093u
@@ -207,13 +222,22 @@ inline int owner_rank_for_cell(const Eigen::RowVector3i& cell, int nranks,
 
     std::uint64_t code = XnYZip::morton_code(cell);
 
+    if (mode == PartitionMode::SAMPLESORT) {
+        // Binary search: find the smallest splitter > code. The owner is the
+        // index of the bucket that contains `code`. There are N-1 splitters
+        // separating N buckets, so owner = upper_bound(splitters, code) -
+        // splitters.begin() ∈ [0, N).
+        auto it = std::upper_bound(splitters.begin(), splitters.end(), code);
+        int owner = static_cast<int>(it - splitters.begin());
+        if (owner < 0) owner = 0;
+        if (owner >= nranks) owner = nranks - 1;
+        return owner;
+    }
+
     if (mode == PartitionMode::MORTON_RANGE) {
-        // Partition [morton_min, morton_max] into N equal sub-ranges.
         if (morton_max <= morton_min) return 0;
         std::uint64_t range = morton_max - morton_min + 1;
         std::uint64_t off = code > morton_min ? code - morton_min : 0;
-        // Avoid 128-bit math by using double; for nranks ≤ a few thousand this
-        // has plenty of precision.
         double frac = static_cast<double>(off) / static_cast<double>(range);
         int owner = static_cast<int>(frac * static_cast<double>(nranks));
         if (owner < 0) owner = 0;
@@ -231,6 +255,72 @@ inline int owner_rank_for_cell(const Eigen::RowVector3i& cell, int nranks,
     if (owner < 0) owner = 0;
     if (owner >= nranks) owner = nranks - 1;
     return owner;
+}
+
+// Samplesort splitter selection: gather samples from all ranks, sort, pick
+// (N-1) splitters at uniform indices. Returns the same vector on every rank
+// (deterministic).
+inline std::vector<std::uint64_t> compute_samplesort_splitters(
+    const std::unordered_map<Eigen::RowVector3i, std::int64_t,
+                             struct CellHasher>& local_table,
+    int rank, int nranks, std::size_t samples_per_rank = 1024)
+{
+    // 1. Sample local_table on this rank.
+    std::vector<std::uint64_t> local_samples;
+    local_samples.reserve(std::min(samples_per_rank, local_table.size()));
+    if (local_table.size() <= samples_per_rank) {
+        for (auto& kv : local_table) {
+            local_samples.push_back(XnYZip::morton_code(kv.first));
+        }
+    } else {
+        // Reservoir sampling (Algorithm R).
+        std::mt19937_64 rng(0x9E3779B97F4A7C15ULL ^ (std::uint64_t)rank);
+        local_samples.resize(samples_per_rank);
+        std::size_t i = 0;
+        for (auto& kv : local_table) {
+            std::uint64_t code = XnYZip::morton_code(kv.first);
+            if (i < samples_per_rank) {
+                local_samples[i] = code;
+            } else {
+                std::size_t j = std::uniform_int_distribution<std::size_t>(0, i)(rng);
+                if (j < samples_per_rank) local_samples[j] = code;
+            }
+            ++i;
+        }
+    }
+    int local_n = static_cast<int>(local_samples.size());
+
+    // 2. Allgather counts, then bytes.
+    std::vector<int> counts(nranks), displs(nranks);
+    MPI_Allgather(&local_n, 1, MPI_INT, counts.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    int total = 0;
+    for (int r = 0; r < nranks; ++r) {
+        displs[r] = total;
+        total += counts[r];
+    }
+    std::vector<std::uint64_t> all_samples(total);
+    MPI_Allgatherv(local_samples.data(), local_n, MPI_UINT64_T,
+                   all_samples.data(), counts.data(), displs.data(), MPI_UINT64_T,
+                   MPI_COMM_WORLD);
+
+    // 3. Sort and pick splitters.
+    std::sort(all_samples.begin(), all_samples.end());
+    std::vector<std::uint64_t> splitters;
+    if (total <= 0 || nranks <= 1) return splitters;
+    splitters.reserve(nranks - 1);
+    for (int i = 1; i < nranks; ++i) {
+        std::size_t idx = (static_cast<std::size_t>(total) * i) / nranks;
+        if (idx >= all_samples.size()) idx = all_samples.size() - 1;
+        splitters.push_back(all_samples[idx]);
+    }
+    if (rank == 0) {
+        std::printf("[mapreduce] samplesort: gathered %d samples, "
+                    "%zu splitters [first=%llu, last=%llu]\n",
+                    total, splitters.size(),
+                    splitters.empty() ? 0ULL : (unsigned long long)splitters.front(),
+                    splitters.empty() ? 0ULL : (unsigned long long)splitters.back());
+    }
+    return splitters;
 }
 
 // Quantize a chunk of points using the global offset (so all ranks share the
@@ -403,16 +493,31 @@ int run_mapreduce(const Args& args, MPI_File fh,
     // ---- Phase C (Shuffle): MPI_Alltoallv by partition function ----
     PartitionMode part_mode = pick_partition_mode();
     if (rank == 0) {
-        const char* name = part_mode == PartitionMode::HASH         ? "hash"
+        const char* name = part_mode == PartitionMode::SAMPLESORT   ? "samplesort"
+                         : part_mode == PartitionMode::HASH         ? "hash"
                          : part_mode == PartitionMode::MORTON_RANGE ? "morton-range"
                                                                     : "morton";
         std::printf("[mapreduce] partition mode = %s\n", name);
     }
+
+    // Samplesort needs an extra Allgather of K samples per rank to compute
+    // splitters before we can call owner_rank_for_cell. For other modes the
+    // splitters vector stays empty and is unused.
+    std::vector<std::uint64_t> splitters;
+    if (part_mode == PartitionMode::SAMPLESORT) {
+        double tS = MPI_Wtime();
+        splitters = compute_samplesort_splitters(local_table, rank, nranks, /*samples_per_rank=*/1024);
+        if (rank == 0) {
+            std::printf("[mapreduce] samplesort splitter selection: %.2fs\n", MPI_Wtime() - tS);
+        }
+    }
+
     std::vector<std::vector<CellEntry>> send_buckets(nranks);
     for (auto& kv : local_table) {
         const Eigen::RowVector3i& c = kv.first;
         int owner = owner_rank_for_cell(c, nranks, morton_bits,
-                                        global_morton_min, global_morton_max, part_mode);
+                                        global_morton_min, global_morton_max,
+                                        splitters, part_mode);
         std::int32_t cnt32 = static_cast<std::int32_t>(std::min<std::int64_t>(kv.second, INT32_MAX));
         send_buckets[owner].push_back(CellEntry{c[0], c[1], c[2], cnt32});
     }
