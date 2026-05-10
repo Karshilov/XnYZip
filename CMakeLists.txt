@@ -27,6 +27,7 @@ file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
 )
 list(FILTER SRC_FILES EXCLUDE REGEX "${PROJECT_SOURCE_DIR}/source/main.cpp$")
 list(FILTER SRC_FILES EXCLUDE REGEX "${PROJECT_SOURCE_DIR}/source/mpi_driver.cpp$")
+list(FILTER SRC_FILES EXCLUDE REGEX "${PROJECT_SOURCE_DIR}/source/mr_decompress.cpp$")
 
 add_library(XnYZip_lib ${SRC_FILES})
 
@@ -58,6 +59,12 @@ set_property(TARGET XnYZip_exe PROPERTY OUTPUT_NAME XnYZip)
 target_compile_features(XnYZip_exe PRIVATE cxx_std_20)
 
 target_link_libraries(XnYZip_exe PRIVATE XnYZip_lib)
+
+# ---- Distributed-RLE decompression utility (no MPI required) ----
+add_executable(XnYZip_mr_decompress source/mr_decompress.cpp)
+set_property(TARGET XnYZip_mr_decompress PROPERTY OUTPUT_NAME XnYZip_mr_decompress)
+target_compile_features(XnYZip_mr_decompress PRIVATE cxx_std_20)
+target_link_libraries(XnYZip_mr_decompress PRIVATE XnYZip_lib)
 
 # ---- Optional MPI driver (distributed compression for scaling experiments) ----
 

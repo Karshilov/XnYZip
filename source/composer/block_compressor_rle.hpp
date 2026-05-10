@@ -316,7 +316,156 @@ namespace XnYZip {
                 auto final_compressed = compress_u8_vector(buffer);
                 std::cout << "compressed size of coords (after zstd): " << final_compressed.size() << std::endl;
                 std::cout << "compression ratio of coords (after zstd): " << (double)points.size() * 3 * sizeof(float) / final_compressed.size() << std::endl;
-    
+
+                return final_compressed;
+            }
+
+            // === Distributed-RLE entry point ===
+            //
+            // Used by the MPI driver's `--mode mapreduce` flow. Takes
+            // *already-deduplicated* (cells, counts) — typically produced by a
+            // distributed Map+Shuffle+Reduce phase that aggregates each global
+            // cell's total count across ranks — and runs the rest of the RLE
+            // encoding pipeline (SFC sort + delta + bitpack + Huffman + zstd
+            // for the cell stream and the count stream).
+            //
+            // `range_x/y/z` and `offset` should be the GLOBAL bbox of the
+            // dataset (not chunk-local), broadcast from rank 0. Using global
+            // bbox guarantees every rank emits a consistent sub-block grid.
+            //
+            // Forces block mode (always); skips the direct-mode path that has
+            // the pre-existing 1-point overflow bug and would also produce
+            // inconsistent encodings across ranks.
+            //
+            // Existing compress() above is unchanged.
+            auto encode_cells_with_counts(
+                std::vector<Eigen::RowVector3i>& cells,
+                std::vector<int>& counts,
+                int range_x, int range_y, int range_z,
+                Eigen::RowVector3<T> offset,
+                bool curve_type)
+                -> std::vector<uint8_t>
+            {
+                if (cells.size() != counts.size()) {
+                    throw std::runtime_error("encode_cells_with_counts: cells and counts size mismatch");
+                }
+
+                std::vector<uint8_t> buffer;
+                auto append_value = [&](auto v) {
+                    auto const* p = reinterpret_cast<uint8_t const*>(&v);
+                    buffer.insert(buffer.end(), p, p + sizeof(v));
+                };
+
+                uint64_t num_points = cells.size();
+                append_value(num_points);
+                append_value(static_cast<uint64_t>(0)); // params.size() == 0 for TO/cube quantizer in distributed mode
+
+                append_value(range_x);
+                append_value(range_y);
+                append_value(range_z);
+
+                bool is_direct = false;  // always block mode in distributed
+                append_value(curve_type);
+                append_value(is_direct);
+
+                // ---- Block-mode encoding path (mirrors compress() else branch) ----
+                auto [blk, cnt_blk, quads, repos, ords, is_hilbert] =
+                    block_quantize(cells, 64, 64, 64, range_x, range_y, range_z, curve_type);
+
+                // Reorder counts via ords (matches what compress() does)
+                {
+                    auto copy_cnts = counts;
+                    for (size_t i = 0; i < ords.size(); i++) {
+                        counts[i] = copy_cnts[ords[i]];
+                    }
+                }
+
+                cells.clear();
+
+                for (int i = cnt_blk.size() - 1; i > 0; i--) cnt_blk[i] -= cnt_blk[i - 1];
+                for (int i = blk.size() - 1; i > 0; i--) blk[i] -= blk[i - 1];
+
+                auto bitpacker = BitPacker<uint64_t>();
+                {
+                    auto [meta, data] = bitpacker.pack(blk);
+                    append_value(data.size());
+                    append_value(meta.size());
+                    buffer.insert(buffer.end(), meta.begin(), meta.end());
+                    buffer.insert(buffer.end(), data.begin(), data.end());
+                }
+                {
+                    auto [meta2, data2] = bitpacker.pack(cnt_blk);
+                    append_value(data2.size());
+                    append_value(meta2.size());
+                    buffer.insert(buffer.end(), meta2.begin(), meta2.end());
+                    buffer.insert(buffer.end(), data2.begin(), data2.end());
+                }
+
+                {
+                    auto p_for_delta_encoder = PForDeltaEncoder<uint64_t>();
+                    auto p_for_delta_data = p_for_delta_encoder.encode(repos);
+                    auto [meta_p, data_p] = GolombRiceCoder<uint64_t>::pack(p_for_delta_data.patches);
+                    append_value(data_p.size());
+                    append_value(meta_p.size());
+                    buffer.insert(buffer.end(), meta_p.begin(), meta_p.end());
+                    buffer.insert(buffer.end(), data_p.begin(), data_p.end());
+
+                    auto encoder = HuffmanEncoder<uint64_t>();
+                    encoder.build(p_for_delta_data.deltas);
+                    auto meta3 = encoder.get_meta();
+                    auto compressed = encoder.encode(p_for_delta_data.deltas);
+                    append_value(compressed.size());
+                    append_value(meta3.size());
+                    buffer.insert(buffer.end(), meta3.begin(), meta3.end());
+                    buffer.insert(buffer.end(), compressed.begin(), compressed.end());
+                }
+
+                {
+                    auto p_for_delta_encoder2 = PForDeltaEncoder<uint8_t>();
+                    auto p_for_delta_data2 = p_for_delta_encoder2.encode(quads);
+                    auto golomb_rice_encoder2 = GolombRiceCoder<uint8_t>();
+                    auto [meta_p2, data_p2] = golomb_rice_encoder2.pack(p_for_delta_data2.patches);
+                    append_value(data_p2.size());
+                    append_value(meta_p2.size());
+                    buffer.insert(buffer.end(), meta_p2.begin(), meta_p2.end());
+                    buffer.insert(buffer.end(), data_p2.begin(), data_p2.end());
+
+                    auto encoder2 = HuffmanEncoder<uint8_t>();
+                    encoder2.build(p_for_delta_data2.deltas);
+                    auto meta4 = encoder2.get_meta();
+                    auto compressed4 = encoder2.encode(p_for_delta_data2.deltas);
+                    append_value(compressed4.size());
+                    append_value(meta4.size());
+                    buffer.insert(buffer.end(), meta4.begin(), meta4.end());
+                    buffer.insert(buffer.end(), compressed4.begin(), compressed4.end());
+                }
+
+                // Encode counts (mirrors compress() lines 290-310)
+                {
+                    auto encoder3 = HuffmanEncoder<int>();
+                    encoder3.build(counts);
+                    auto meta5 = encoder3.get_meta();
+                    auto compressed5 = encoder3.encode(counts);
+                    if (static_cast<double>(meta5.size()) > static_cast<double>(compressed5.size()) * 0.25) {
+                        encoder3.set_use_exp_golomb(true);
+                    }
+                    encoder3.build(counts);
+                    meta5 = encoder3.get_meta();
+                    compressed5 = encoder3.encode(counts);
+                    append_value(compressed5.size());
+                    append_value(meta5.size());
+                    buffer.insert(buffer.end(), meta5.begin(), meta5.end());
+                    buffer.insert(buffer.end(), compressed5.begin(), compressed5.end());
+                }
+
+                append_value(offset.x());
+                append_value(offset.y());
+                append_value(offset.z());
+
+                auto final_compressed = compress_u8_vector(buffer);
+                std::cout << "[mapreduce] encode_cells_with_counts: cells=" << num_points
+                          << " pre_zstd=" << buffer.size()
+                          << " post_zstd=" << final_compressed.size() << std::endl;
                 return final_compressed;
             }
 
