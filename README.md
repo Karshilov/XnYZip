@@ -1,6 +1,6 @@
 # XnYZip
 
-This is the XnYZip project.
+Official implementation of paper "Error-bounded Point Cloud Compression Using Truncated Octahedron Quantization" (VLDB'26).
 
 > The expected platform is Linux. Haven't tested on other platforms.
 
